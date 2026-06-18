@@ -441,10 +441,12 @@ async function init(){
     var r2 = await db.from('saidas').select('*').order('created_at', { ascending: false });
     machines = r1.data || [];
     allSaidas = r2.data || [];
-    g('loading').style.display = 'none';
-    g('app').style.display = 'flex';
-    initLbZoom();
-    goView('maquinas');
+    setTimeout(function(){
+      g('loading').style.display = 'none';
+      g('app').style.display = 'flex';
+      initLbZoom();
+      goView('maquinas');
+    }, 7000);
   } catch(e) {
     g('loading').innerHTML = '<div style="text-align:center;padding:20px;color:#fff"><div style="font-size:48px;margin-bottom:12px">oops</div><div style="font-size:16px">Erro ao conectar</div><div style="font-size:13px;opacity:.8;margin-top:8px">Verifique sua conexao</div></div>';
   }
