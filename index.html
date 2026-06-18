@@ -750,9 +750,9 @@ if('serviceWorker' in navigator){
   <p>${periodo} · Gerado em ${new Date().toLocaleDateString('pt-BR')}</p>
   <table><thead><tr><th>Código</th><th>Máquina</th><th>Data</th><th>Destino</th><th>Obs.</th></tr></thead><tbody>${linhas}</tbody></table>
   <p class="total">Total: ${saidasFiltradas.length} saída${saidasFiltradas.length!==1?'s':''}</p>
-  <script>window.onload=()=>window.print()<\/script></body></html>`;
+  </body></html>`;
   const w=window.open('','_blank');
-  w.document.write(html); w.document.close();
+  w.document.write(html); w.document.close(); setTimeout(()=>w.print(),500);
 }
 
 /* IMPRIMIR PEÇAS */
@@ -780,9 +780,9 @@ if('serviceWorker' in navigator){
   <h1>Lista de Peças — ${m?m.nome:''}</h1>
   <p>${m&&m.modelo?'Modelo: '+m.modelo+' · ':''}Gerado em ${new Date().toLocaleDateString('pt-BR')}</p>
   <table><thead><tr><th>Qtd</th><th>Peça</th><th>Categoria</th><th>Observação</th></tr></thead><tbody>${rows}</tbody></table>
-  <script>window.onload=()=>window.print()<\/script></body></html>`;
+  </body></html>`;
   const w=window.open('','_blank');
-  w.document.write(html); w.document.close();
+  w.document.write(html); w.document.close(); setTimeout(()=>w.print(),500);
 }
 
 async function renderSobre(){
