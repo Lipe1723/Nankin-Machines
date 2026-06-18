@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#1e7d3e">
+<title>Nankin Machines</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Nankin">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+  --green:#1e7d3e;--green-dark:#145e2c;--green-light:#e8f5ec;
+  --font:'IBM Plex Sans',sans-serif;--mono:'IBM Plex Mono',monospace;
+  --bg:#f0f7f0;--surface:#fff;--border:#d0e8d8;
+  --text:#0f2d18;--muted:#5a7a62;--danger:#c0392b;--blue:#1a56a0;
+}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--font);font-size:15px;overflow:hidden}
+.app{display:flex;flex-direction:column;height:100%;max-width:430px;margin:0 auto;background:var(--bg)}
+.topbar{background:var(--green);padding:0 16px;height:54px;display:flex;align-items:center;gap:10px;flex-shrink:0}
+.logo{font-family:var(--mono);font-size:15px;font-weight:500;color:#fff;flex:1}
+.logo span{color:#a8dbb8}
+.topbar-btn{background:rgba(255,255,255,.18);border:none;color:#fff;border-radius:7px;font-size:13px;font-family:var(--font);font-weight:500;padding:7px 13px;cursor:pointer;display:flex;align-items:center;gap:5px}
+.topbar-btn:active{background:rgba(255,255,255,.3)}
+.bottomnav{height:62px;background:var(--surface);border-top:0.5px solid var(--border);display:flex;flex-shrink:0;padding-bottom:env(safe-area-inset-bottom)}
+.bnav{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;border:none;background:none;cursor:pointer;color:var(--muted);font-size:11px;font-family:var(--font);padding:8px 0}
+.bnav i{font-size:24px}
+.bnav.active{color:var(--green)}
+.scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.main{padding:16px}
+.view{display:none}
+.view.on{display:block}
+.stats-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
+.stat-card{background:var(--surface);border:0.5px solid var(--border);border-radius:12px;padding:14px 16px}
+.stat-val{font-family:var(--mono);font-size:28px;font-weight:500;color:var(--green);line-height:1.1}
+.stat-lbl{font-size:12px;color:var(--muted);margin-top:4px}
+.search-wrap{position:relative;margin-bottom:10px}
+.search-wrap i{position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:18px;color:var(--muted);pointer-events:none}
+.search-input{background:var(--surface);border:0.5px solid var(--border);border-radius:10px;padding:11px 14px 11px 38px;font-family:var(--font);font-size:14px;color:var(--text);width:100%;outline:none}
+.search-input:focus{border-color:var(--green)}
+.mcard{background:var(--surface);border:0.5px solid var(--border);border-radius:12px;padding:14px;display:flex;gap:12px;cursor:pointer;margin-bottom:10px}
+.mcard:active{background:var(--green-light)}
+.mthumb{width:58px;height:58px;border-radius:8px;background:var(--green-light);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;border:0.5px solid var(--border)}
+.mthumb img{width:100%;height:100%;object-fit:cover}
+.mthumb i{font-size:26px;color:var(--green)}
+.minfo{flex:1;min-width:0}
+.mname{font-size:15px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:2px}
+.msub{font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:7px}
+.mtags{display:flex;gap:5px;flex-wrap:wrap}
+.pill{font-size:11px;padding:3px 8px;border-radius:20px;font-family:var(--mono);border:0.5px solid var(--border);color:var(--muted);background:var(--bg)}
+.pill.g{background:var(--green-light);color:var(--green-dark);border-color:#b8dfc6}
+.pill.b{background:#e8f0fb;color:#1a4a8a;border-color:#b5cdf0}
+.pill.o{background:#fff3e8;color:#a04010;border-color:#f0c8a0}
+.mchev{color:var(--border);font-size:18px;align-self:center;flex-shrink:0}
+.itabs{display:flex;overflow-x:auto;scrollbar-width:none;background:var(--surface);border-bottom:0.5px solid var(--border);margin:-16px -16px 16px;padding:0 16px}
+.itabs::-webkit-scrollbar{display:none}
+.itab{font-size:13px;font-weight:500;padding:12px 14px;border:none;background:none;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;font-family:var(--font);flex-shrink:0}
+.itab.active{color:var(--green);border-bottom-color:var(--green)}
+.foto-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px}
+.fcell{aspect-ratio:1;border-radius:8px;overflow:hidden;border:0.5px solid var(--border);position:relative}
+.fcell img{width:100%;height:100%;object-fit:cover;cursor:pointer}
+.fdel{position:absolute;top:4px;right:4px;background:rgba(0,0,0,.55);border:none;color:#fff;border-radius:50%;width:26px;height:26px;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.fadd{aspect-ratio:1;border-radius:8px;border:1.5px dashed var(--border);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:var(--muted);cursor:pointer;position:relative;background:var(--surface)}
+.fadd:active{background:var(--green-light)}
+.fadd input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.fadd i{font-size:24px;color:var(--green)}
+.fadd span{font-size:11px}
+
+/* PEÇAS */
+.peca-cat-group{margin-bottom:16px}
+.peca-cat-label{font-size:11px;font-weight:500;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);padding:8px 0 6px;border-bottom:0.5px solid var(--border);margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.prow{background:var(--surface);border:0.5px solid var(--border);border-radius:10px;padding:12px 14px;display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.pqty{font-family:var(--mono);font-size:16px;font-weight:500;color:var(--green);min-width:40px}
+.pnome{flex:1;font-size:14px}
+.pobs{font-size:12px;color:var(--muted)}
+.peca-toolbar{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+.sort-btn{background:var(--surface);border:0.5px solid var(--border);border-radius:8px;padding:7px 12px;font-size:12px;font-family:var(--font);color:var(--muted);cursor:pointer;display:flex;align-items:center;gap:5px}
+.sort-btn.active{border-color:var(--green);color:var(--green);background:var(--green-light)}
+
+/* PDF */
+.pdf-group{margin-bottom:16px}
+.pdf-glabel{font-size:11px;font-weight:500;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);padding:8px 0 6px;border-bottom:0.5px solid var(--border);margin-bottom:8px}
+.pdfrow{background:var(--surface);border:0.5px solid var(--border);border-radius:10px;padding:12px 14px;display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.pdfrow i.icon{font-size:22px;color:var(--blue);flex-shrink:0}
+.pdfinfo{flex:1;min-width:0}
+.pdfnome{font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* SAÍDA */
+.scard{background:var(--surface);border:0.5px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px}
+.stop{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.scod{font-family:var(--mono);font-size:13px;font-weight:500;background:var(--green);color:#fff;padding:4px 10px;border-radius:6px}
+.smaq{font-size:14px;font-weight:500;flex:1}
+.smeta{display:flex;flex-wrap:wrap;gap:8px;font-size:13px;color:var(--muted)}
+.smeta span{display:flex;align-items:center;gap:5px}
+.smeta i{font-size:15px}
+
+/* FILTRO SAÍDAS */
+.filtro-bar{background:var(--surface);border:0.5px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:12px;display:flex;flex-direction:column;gap:10px}
+.filtro-row{display:flex;gap:8px;align-items:flex-end}
+.filtro-group{display:flex;flex-direction:column;gap:4px;flex:1}
+.filtro-label{font-size:10px;font-weight:500;letter-spacing:1px;text-transform:uppercase;color:var(--muted)}
+.filtro-input{background:var(--bg);border:0.5px solid var(--border);border-radius:7px;padding:9px 11px;font-family:var(--font);font-size:13px;color:var(--text);width:100%;outline:none;-webkit-appearance:none}
+.filtro-input:focus{border-color:var(--green)}
+.export-row{display:flex;gap:8px}
+
+/* BTNS */
+.btn{background:var(--green);color:#fff;border:none;border-radius:9px;padding:12px 20px;font-family:var(--font);font-size:14px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:8px}
+.btn:active{background:var(--green-dark)}
+.btn.full{width:100%;justify-content:center}
+.btn.sec{background:var(--surface);color:var(--text);border:0.5px solid var(--border)}
+.btn.sec:active{background:var(--bg)}
+.btn.blue{background:var(--blue)}
+.btn.danger{background:#fdf0f0;color:var(--danger);border:0.5px solid #f5c6c6}
+.btn.sm{padding:8px 13px;font-size:12px;border-radius:7px}
+.btn.xs{padding:7px 11px;font-size:12px;border-radius:7px}
+
+/* FORM */
+.fg{display:flex;flex-direction:column;gap:5px;margin-bottom:14px}
+.fl{font-size:11px;font-weight:500;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted)}
+.fi{background:var(--bg);border:0.5px solid var(--border);border-radius:9px;padding:12px 14px;color:var(--text);font-family:var(--font);font-size:15px;width:100%;-webkit-appearance:none;outline:none}
+.fi:focus{border-color:var(--green);background:#fff}
+
+/* SHEET */
+.sheet-ov{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:50;display:none;align-items:flex-end;justify-content:center}
+.sheet-ov.on{display:flex}
+.sheet{background:var(--surface);border-radius:18px 18px 0 0;width:100%;max-width:430px;padding:16px 16px;padding-bottom:max(24px,env(safe-area-inset-bottom));max-height:88%;overflow-y:auto}
+.shandle{width:32px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 14px}
+.stitle{font-size:16px;font-weight:500;margin-bottom:16px}
+.sfoot{display:flex;gap:10px;margin-top:4px}
+
+/* UPLOAD */
+.ulabel{background:var(--bg);border:0.5px solid var(--border);border-radius:9px;padding:12px 14px;font-family:var(--font);font-size:14px;color:var(--muted);cursor:pointer;position:relative;text-align:center;display:block;width:100%}
+.ulabel input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.ulabel.sel{border-color:var(--green);color:var(--green);background:var(--green-light)}
+
+/* LIGHTBOX */
+.lb{position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:200;display:none;flex-direction:column;align-items:center;justify-content:center}
+.lb.on{display:flex}
+.lb img{max-width:100%;max-height:90%;object-fit:contain;border-radius:4px}
+.lb-x{position:fixed;top:14px;right:14px;background:rgba(255,255,255,.15);border:none;color:#fff;font-size:20px;width:42px;height:42px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center}
+
+/* LOADING */
+.loading{position:fixed;inset:0;background:var(--green);z-index:999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;color:#fff}
+.loading-logo{font-family:var(--mono);font-size:24px;font-weight:500}
+.loading-logo span{color:#a8dbb8}
+.spinner{width:36px;height:36px;border:3px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* TOAST */
+.toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#1a1a1a;color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;z-index:300;opacity:0;transition:.3s;pointer-events:none;white-space:nowrap}
+.toast.show{opacity:1}
+
+.back-row{display:flex;align-items:center;gap:6px;color:var(--green);font-size:13px;font-weight:500;cursor:pointer;margin-bottom:14px}
+.back-row i{font-size:18px}
+.empty{text-align:center;padding:40px 20px;color:var(--muted)}
+.empty i{font-size:48px;margin-bottom:12px;display:block;color:var(--border)}
+.empty-t{font-size:15px;font-weight:500;color:var(--text);margin-bottom:6px}
+.empty-s{font-size:13px;line-height:1.5}
+.sobre-row{background:var(--surface);border:0.5px solid var(--border);border-radius:0;padding:14px 16px;display:flex;justify-content:space-between;align-items:center}
+.sobre-row:first-child{border-radius:12px 12px 0 0}
+.sobre-row:last-child{border-radius:0 0 12px 12px}
+.sobre-row+.sobre-row{border-top:none}
+
+
+/* INSTALL BANNER */
+.install-banner{position:fixed;bottom:70px;left:50%;transform:translateX(-50%);background:var(--text);color:#fff;border-radius:12px;padding:12px 16px;display:none;align-items:center;gap:12px;z-index:400;max-width:360px;width:calc(100% - 32px);box-shadow:0 4px 20px rgba(0,0,0,.25)}
+.install-banner.show{display:flex}
+.install-banner-text{flex:1;font-size:13px;line-height:1.4}
+.install-banner-text strong{display:block;font-size:14px;margin-bottom:2px}
+.install-btn{background:var(--green);border:none;color:#fff;border-radius:8px;padding:8px 14px;font-size:13px;font-family:var(--font);font-weight:500;cursor:pointer;white-space:nowrap}
+.install-close{background:none;border:none;color:rgba(255,255,255,.6);font-size:20px;cursor:pointer;padding:2px;line-height:1}
+/* PRINT */
+@media print {
+  body{overflow:visible!important;background:#fff}
+  .app{height:auto;overflow:visible}
+  .topbar,.bottomnav,.sheet-ov,.lb,.toast,.loading,.back-row,.peca-toolbar,.btn,.export-row,.filtro-bar,.search-wrap,.stats-row{display:none!important}
+  .scroll{overflow:visible;height:auto}
+  .view{display:none!important}
+  .view.print-active{display:block!important}
+  .main{padding:16px}
+  .prow,.scard{break-inside:avoid}
+  .print-header{display:block!important;font-family:var(--mono);font-size:18px;font-weight:500;margin-bottom:16px;padding-bottom:8px;border-bottom:2px solid #000}
+}
+.print-header{display:none}
+</style>
+<script>
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>{
+    navigator.serviceWorker.register('./sw.js').catch(()=>{});
+  });
+}
+</script>
+</head>
+<body>
+
+<div class="loading" id="loading">
+  <div class="loading-logo">Nankin <span>Machines</span></div>
+  <div class="spinner"></div>
+</div>
+
+<div class="lb" id="lb"><button class="lb-x" onclick="closeLb()"><i class="ti ti-x"></i></button><img id="lb-img" src="" alt=""></div>
+<div class="toast" id="toast"></div>
+
+<!-- SHEETS -->
+<div class="sheet-ov" id="sh-maq">
+  <div class="sheet">
+    <div class="shandle"></div>
+    <div class="stitle">Nova máquina</div>
+    <div class="fg"><label class="fl">Nome *</label><input class="fi" id="n-nome" placeholder="Ex: Costureira Industrial"></div>
+    <div class="fg"><label class="fl">Prefixo do código</label><input class="fi" id="n-modelo" placeholder="Ex: CTR, MPF"></div>
+    <div class="fg"><label class="fl">Descrição</label><input class="fi" id="n-desc" placeholder="Opcional"></div>
+    <div class="sfoot">
+      <button class="btn sec" style="flex:1" onclick="closeSheet('sh-maq')">Cancelar</button>
+      <button class="btn" style="flex:2" onclick="salvarMaq()"><i class="ti ti-check"></i> Salvar</button>
+    </div>
+  </div>
+</div>
+
+<div class="sheet-ov" id="sh-peca">
+  <div class="sheet">
+    <div class="shandle"></div>
+    <div class="stitle">Adicionar peça</div>
+    <div class="fg"><label class="fl">Quantidade</label><input class="fi" id="p-qty" type="number" min="1" placeholder="Ex: 20"></div>
+    <div class="fg"><label class="fl">Nome da peça *</label><input class="fi" id="p-nome" placeholder="Ex: Parafuso M12"></div>
+    <div class="fg"><label class="fl">Categoria</label><input class="fi" id="p-cat" placeholder="Ex: Parafusos, Motores, Chapas..."></div>
+    <div class="fg"><label class="fl">Observação</label><input class="fi" id="p-obs" placeholder="Ex: Inox, galvanizado..."></div>
+    <div class="sfoot">
+      <button class="btn sec" style="flex:1" onclick="closeSheet('sh-peca')">Cancelar</button>
+      <button class="btn" style="flex:2" onclick="salvarPeca()"><i class="ti ti-check"></i> Adicionar</button>
+    </div>
+  </div>
+</div>
+
+<div class="sheet-ov" id="sh-pdf">
+  <div class="sheet">
+    <div class="shandle"></div>
+    <div class="stitle">Adicionar PDF</div>
+    <div class="fg"><label class="fl">Parte / Seção *</label><input class="fi" id="pdf-parte" placeholder="Ex: Base, Estrutura, Elétrica..."></div>
+    <div class="fg"><label class="fl">Arquivo PDF</label><label class="ulabel" id="pdf-ul"><i class="ti ti-paperclip"></i> Selecionar PDF<input type="file" accept=".pdf,application/pdf" onchange="selPdf(this)"></label></div>
+    <div class="sfoot">
+      <button class="btn sec" style="flex:1" onclick="closeSheet('sh-pdf')">Cancelar</button>
+      <button class="btn blue" style="flex:2" onclick="salvarPdf()"><i class="ti ti-check"></i> Adicionar</button>
+    </div>
+  </div>
+</div>
+
+<div class="sheet-ov" id="sh-saida">
+  <div class="sheet">
+    <div class="shandle"></div>
+    <div class="stitle">Registrar saída</div>
+    <div class="fg"><label class="fl">Código *</label><input class="fi" id="s-cod" placeholder="Ex: CTR 1001" style="font-family:var(--mono)"></div>
+    <div class="fg"><label class="fl">Data de conclusão *</label><input class="fi" type="date" id="s-data"></div>
+    <div class="fg"><label class="fl">Destino / Cliente</label><input class="fi" id="s-dest" placeholder="Ex: Calçados ABC"></div>
+    <div class="fg"><label class="fl">Observação</label><input class="fi" id="s-obs" placeholder="Opcional"></div>
+    <div class="sfoot">
+      <button class="btn sec" style="flex:1" onclick="closeSheet('sh-saida')">Cancelar</button>
+      <button class="btn" style="flex:2" onclick="salvarSaida()"><i class="ti ti-check"></i> Registrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- INSTALL BANNER -->
+<div class="install-banner" id="install-banner">
+  <div style="font-size:32px">📲</div>
+  <div class="install-banner-text">
+    <strong>Instalar app</strong>
+    Adicione à tela inicial para usar como app
+  </div>
+  <button class="install-btn" onclick="instalarApp()">Instalar</button>
+  <button class="install-close" onclick="fecharBanner()">✕</button>
+</div>
+<!-- APP -->
+<div class="app" id="app" style="display:none">
+  <div class="topbar" id="topbar">
+    <span class="logo" id="logo">Nankin <span>Machines</span></span>
+    <div id="topbar-actions"></div>
+  </div>
+
+  <div class="scroll">
+
+    <!-- MÁQUINAS -->
+    <div class="view on main" id="v-maquinas">
+      <div class="stats-row" id="stats"></div>
+      <div class="search-wrap"><i class="ti ti-search"></i><input class="search-input" id="busca" placeholder="Buscar máquina..." oninput="renderMaquinas()"></div>
+      <div id="maq-list"></div>
+    </div>
+
+    <!-- DETALHE -->
+    <div class="view main" id="v-detalhe">
+      <button class="back-row" onclick="voltarLista()"><i class="ti ti-arrow-left"></i> Máquinas</button>
+      <div class="itabs">
+        <button class="itab active" onclick="itab('fotos',this)"><i class="ti ti-photo"></i> Fotos</button>
+        <button class="itab" onclick="itab('pecas',this)"><i class="ti ti-bolt"></i> Peças</button>
+        <button class="itab" onclick="itab('pdfs',this)"><i class="ti ti-file-type-pdf"></i> PDFs</button>
+        <button class="itab" onclick="itab('saidas-maq',this)"><i class="ti ti-package"></i> Saídas</button>
+      </div>
+
+      <div id="it-fotos">
+        <div class="foto-grid" id="foto-grid"></div>
+        <p style="font-size:12px;color:var(--muted)">Toque na foto para ampliar.</p>
+      </div>
+
+      <div id="it-pecas" style="display:none">
+        <div class="print-header" id="print-pecas-title">Lista de Peças</div>
+        <div class="peca-toolbar">
+          <button class="sort-btn active" id="sort-az" onclick="sortPecas('az')"><i class="ti ti-sort-ascending-letters" style="font-size:15px"></i> A–Z</button>
+          <button class="sort-btn" id="sort-qty" onclick="sortPecas('qty')"><i class="ti ti-sort-descending-numbers" style="font-size:15px"></i> Qtd</button>
+          <button class="sort-btn" id="sort-cat" onclick="sortPecas('cat')"><i class="ti ti-category" style="font-size:15px"></i> Categoria</button>
+          <button class="sort-btn" onclick="imprimirPecas()" style="margin-left:auto"><i class="ti ti-printer" style="font-size:15px"></i> Imprimir</button>
+        </div>
+        <div id="peca-list"></div>
+        <button class="btn full" onclick="openSheet('sh-peca')"><i class="ti ti-plus"></i> Adicionar peça</button>
+      </div>
+
+      <div id="it-pdfs" style="display:none">
+        <div id="pdf-list"></div>
+        <button class="btn full blue" style="margin-top:8px" onclick="openSheet('sh-pdf')"><i class="ti ti-plus"></i> Adicionar PDF</button>
+      </div>
+
+      <div id="it-saidas-maq" style="display:none">
+        <button class="btn full" style="margin-bottom:16px" onclick="abrirSaida()"><i class="ti ti-plus"></i> Registrar saída</button>
+        <p style="font-size:11px;font-weight:500;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:10px">Histórico</p>
+        <div id="saidas-maq-list"></div>
+      </div>
+    </div>
+
+    <!-- SAÍDAS GLOBAL -->
+    <div class="view main" id="v-saidas">
+      <div class="print-header" id="print-saidas-title">Relatório de Saídas — Nankin Machines</div>
+      <div class="stats-row" id="saidas-stats"></div>
+
+      <div class="search-wrap" style="margin-bottom:10px">
+        <i class="ti ti-search"></i>
+        <input class="search-input" id="busca-saidas" placeholder="Buscar código ou máquina..." oninput="aplicarFiltros()">
+      </div>
+
+      <!-- FILTRO DATA -->
+      <div class="filtro-bar">
+        <div class="filtro-row">
+          <div class="filtro-group">
+            <span class="filtro-label">De</span>
+            <input type="date" class="filtro-input" id="f-de" onchange="aplicarFiltros()">
+          </div>
+          <div class="filtro-group">
+            <span class="filtro-label">Até</span>
+            <input type="date" class="filtro-input" id="f-ate" onchange="aplicarFiltros()">
+          </div>
+          <button class="btn sec xs" onclick="limparFiltros()" style="flex-shrink:0;align-self:flex-end"><i class="ti ti-x"></i></button>
+        </div>
+        <div class="export-row">
+          <button class="btn sec xs" style="flex:1" onclick="exportarCSV()"><i class="ti ti-file-spreadsheet"></i> Exportar CSV</button>
+          <button class="btn sec xs" style="flex:1" onclick="exportarPDFSaidas()"><i class="ti ti-file-type-pdf"></i> Exportar PDF</button>
+        </div>
+      </div>
+
+      <div id="saidas-list"></div>
+    </div>
+
+    <!-- SOBRE -->
+    <div class="view main" id="v-sobre">
+      <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:12px;padding:20px;text-align:center;margin-bottom:16px">
+        <div style="width:64px;height:64px;background:var(--green-light);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 12px"><i class="ti ti-tool" style="font-size:32px;color:var(--green)"></i></div>
+        <div style="font-size:17px;font-weight:500;margin-bottom:4px">Nankin Machines</div>
+        <div style="font-size:13px;color:var(--muted)">Catálogo interno de máquinas</div>
+      </div>
+      <div style="border:0.5px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:16px">
+        <div class="sobre-row"><span style="font-size:14px">Máquinas cadastradas</span><span id="s-nmaq" style="font-family:var(--mono);color:var(--green);font-weight:500">—</span></div>
+        <div class="sobre-row" style="border-top:0.5px solid var(--border)"><span style="font-size:14px">Total de saídas</span><span id="s-nsai" style="font-family:var(--mono);color:var(--green);font-weight:500">—</span></div>
+        <div class="sobre-row" style="border-top:0.5px solid var(--border)"><span style="font-size:14px">PDFs cadastrados</span><span id="s-npdfs" style="font-family:var(--mono);color:var(--green);font-weight:500">—</span></div>
+      </div>
+      <button class="btn danger full" onclick="if(confirm('Tem certeza?'))limparDados()"><i class="ti ti-trash"></i> Limpar dados locais</button>
+    </div>
+
+  </div>
+
+  <div class="bottomnav">
+    <button class="bnav active" id="bn-maquinas" onclick="goView('maquinas')"><i class="ti ti-tool"></i><span>Máquinas</span></button>
+    <button class="bnav" id="bn-saidas" onclick="goView('saidas')"><i class="ti ti-package-export"></i><span>Saídas</span></button>
+    <button class="bnav" id="bn-sobre" onclick="goView('sobre')"><i class="ti ti-info-circle"></i><span>Sobre</span></button>
+  </div>
+</div>
+
+<script>
+const SUPA_URL = 'https://lngscmqzewwaelmwhnmh.supabase.co';
+const SUPA_KEY = 'sb_publishable_oUYxwwL8PYfIDwS3rmX-Ow_OJG8Q4SH';
+const { createClient } = supabase;
+const db = createClient(SUPA_URL, SUPA_KEY);
+
+let machines = [], allSaidas = [];
+let curId = null, tmpPdf = null, tmpPdfNome = null;
+let curView = 'maquinas';
+let pecaSort = 'az';
+let saidasFiltradas = [];
+
+const $ = id => document.getElementById(id);
+const uid = () => crypto.randomUUID();
+
+function toast(msg, dur=2200){
+  const t=$('toast'); t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), dur);
+}
+function openSheet(id){ $(id).classList.add('on'); }
+function closeSheet(id){ $(id).classList.remove('on'); }
+function closeLb(){ $('lb').classList.remove('on'); }
+
+async function init(){
+  try {
+    const [{ data: maq }, { data: sai }] = await Promise.all([
+      db.from('machines').select('*').order('created_at'),
+      db.from('saidas').select('*').order('created_at', { ascending: false })
+    ]);
+    machines = maq || [];
+    allSaidas = sai || [];
+    $('loading').style.display = 'none';
+    $('app').style.display = 'flex';
+    goView('maquinas');
+  } catch(e) {
+    $('loading').innerHTML = '<div style="text-align:center;padding:20px;color:#fff"><div style="font-size:48px;margin-bottom:12px">⚠️</div><div style="font-size:16px;margin-bottom:8px">Erro ao conectar</div><div style="font-size:13px;opacity:.8">Verifique sua conexão</div></div>';
+  }
+}
+
+function goView(view){
+  curView = view;
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('on'));
+  document.querySelectorAll('.bnav').forEach(b=>b.classList.remove('active'));
+  $('v-'+view).classList.add('on');
+  $('bn-'+view)&&$('bn-'+view).classList.add('active');
+  $('logo').innerHTML = 'Nankin <span>Machines</span>';
+  const ta = $('topbar-actions');
+  if(view==='maquinas'){ ta.innerHTML=`<button class="topbar-btn" onclick="openSheet('sh-maq')"><i class="ti ti-plus"></i> Máquina</button>`; renderStats(); renderMaquinas(); }
+  else if(view==='saidas'){ ta.innerHTML=''; renderSaidasGlobal(); }
+  else if(view==='sobre'){ ta.innerHTML=''; renderSobre(); }
+}
+
+function renderStats(){
+  $('stats').innerHTML=`<div class="stat-card"><div class="stat-val">${machines.length}</div><div class="stat-lbl">Máquinas</div></div><div class="stat-card"><div class="stat-val">${allSaidas.length}</div><div class="stat-lbl">Saídas totais</div></div>`;
+}
+
+function renderMaquinas(){
+  renderStats();
+  const q=($('busca').value||'').toLowerCase();
+  const list=machines.filter(m=>!q||m.nome.toLowerCase().includes(q)||(m.modelo||'').toLowerCase().includes(q));
+  const el=$('maq-list');
+  if(!list.length){ el.innerHTML=`<div class="empty"><i class="ti ti-tool"></i><div class="empty-t">${machines.length?'Nenhum resultado':'Nenhuma máquina'}</div><div class="empty-s">${machines.length?'Tente outro termo':'Toque em "+ Máquina" para começar'}</div></div>`; return; }
+  el.innerHTML=list.map(m=>{
+    const ns=allSaidas.filter(s=>s.machine_id===m.id).length;
+    return `<div class="mcard" onclick="abrirDetalhe('${m.id}')">
+      <div class="mthumb" id="thumb-${m.id}"><i class="ti ti-tool"></i></div>
+      <div class="minfo"><div class="mname">${m.nome}</div><div class="msub">${m.modelo||'—'} · ${ns} saída${ns!==1?'s':''}</div><div class="mtags" id="tags-${m.id}"></div></div>
+      <i class="ti ti-chevron-right mchev"></i>
+    </div>`;
+  }).join('');
+  list.forEach(async m=>{
+    const [{data:fotos},{data:pecas},{data:pdfs}]=await Promise.all([
+      db.from('fotos').select('id,data').eq('machine_id',m.id).limit(1),
+      db.from('pecas').select('id').eq('machine_id',m.id),
+      db.from('pdfs').select('id').eq('machine_id',m.id)
+    ]);
+    const th=$(`thumb-${m.id}`);
+    if(th&&fotos&&fotos.length) th.innerHTML=`<img src="${fotos[0].data}" alt="">`;
+    const tg=$(`tags-${m.id}`);
+    if(tg){
+      let tags=[];
+      if(fotos&&fotos.length) tags.push(`<span class="pill g"><i class="ti ti-photo" style="font-size:11px"></i> foto</span>`);
+      if(pecas&&pecas.length) tags.push(`<span class="pill o"><i class="ti ti-bolt" style="font-size:11px"></i> ${pecas.length}</span>`);
+      if(pdfs&&pdfs.length) tags.push(`<span class="pill b"><i class="ti ti-file-type-pdf" style="font-size:11px"></i> ${pdfs.length}</span>`);
+      tg.innerHTML=tags.join('');
+    }
+  });
+}
+
+async function salvarMaq(){
+  const nome=$('n-nome').value.trim();
+  if(!nome){ toast('Informe o nome'); return; }
+  const {data,error}=await db.from('machines').insert({nome,modelo:$('n-modelo').value.trim().toUpperCase(),descricao:$('n-desc').value.trim()}).select().single();
+  if(error){ toast('Erro ao salvar'); return; }
+  machines.push(data);
+  closeSheet('sh-maq');
+  ['n-nome','n-modelo','n-desc'].forEach(id=>$(id).value='');
+  toast('Máquina criada!');
+  renderStats(); renderMaquinas();
+  abrirDetalhe(data.id);
+}
+
+async function abrirDetalhe(id){
+  curId=id;
+  const m=machines.find(x=>x.id===id);
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('on'));
+  document.querySelectorAll('.bnav').forEach(b=>b.classList.remove('active'));
+  $('v-detalhe').classList.add('on');
+  $('bn-maquinas').classList.add('active');
+  $('logo').innerHTML=`<span style="color:#a8dbb8;font-size:13px">${m.nome}</span>`;
+  $('topbar-actions').innerHTML='';
+  document.querySelectorAll('.itab').forEach((b,i)=>b.classList.toggle('active',i===0));
+  ['pecas','pdfs','saidas-maq'].forEach(t=>$('it-'+t).style.display='none');
+  $('it-fotos').style.display='block';
+  renderFotos();
+}
+
+function voltarLista(){ goView('maquinas'); }
+
+function itab(tab,btn){
+  ['fotos','pecas','pdfs','saidas-maq'].forEach(t=>$('it-'+t).style.display='none');
+  document.querySelectorAll('.itab').forEach(b=>b.classList.remove('active'));
+  $('it-'+tab).style.display='block';
+  btn.classList.add('active');
+  if(tab==='fotos') renderFotos();
+  if(tab==='pecas') renderPecas();
+  if(tab==='pdfs') renderPdfs();
+  if(tab==='saidas-maq') renderSaidasMaq();
+}
+
+/* FOTOS */
+async function renderFotos(){
+  const {data}=await db.from('fotos').select('*').eq('machine_id',curId).order('created_at');
+  const g=$('foto-grid');
+  g.innerHTML=(data||[]).map((f,i)=>`<div class="fcell"><img src="${f.data}" onclick="openLb('${f.data}')"><button class="fdel" onclick="delFoto('${f.id}',event)"><i class="ti ti-x"></i></button></div>`).join('')
+    +`<label class="fadd"><input type="file" accept="image/*" multiple onchange="addFotos(this)"><i class="ti ti-plus"></i><span>Foto</span></label>`;
+}
+function openLb(src){ $('lb-img').src=src; $('lb').classList.add('on'); }
+async function addFotos(input){
+  toast('Enviando fotos...');
+  for(const f of Array.from(input.files)){
+    await new Promise(res=>{ const r=new FileReader(); r.onload=async e=>{ await db.from('fotos').insert({machine_id:curId,data:e.target.result}); res(); }; r.readAsDataURL(f); });
+  }
+  toast('Fotos salvas!'); renderFotos();
+}
+async function delFoto(id,e){ e.stopPropagation(); if(!confirm('Remover foto?'))return; await db.from('fotos').delete().eq('id',id); renderFotos(); }
+
+/* PEÇAS */
+function sortPecas(modo){
+  pecaSort=modo;
+  ['az','qty','cat'].forEach(m=>{ const b=$('sort-'+m); if(b) b.classList.toggle('active',m===modo); });
+  renderPecas();
+}
+
+async function renderPecas(){
+  const {data}=await db.from('pecas').select('*').eq('machine_id',curId);
+  const el=$('peca-list');
+  if(!(data&&data.length)){ el.innerHTML='<div class="empty"><i class="ti ti-bolt"></i><div class="empty-t">Sem peças</div><div class="empty-s">Adicione os componentes desta máquina</div></div>'; return; }
+
+  let sorted=[...data];
+  if(pecaSort==='az') sorted.sort((a,b)=>a.nome.localeCompare(b.nome));
+  else if(pecaSort==='qty') sorted.sort((a,b)=>b.qty-a.qty);
+  else if(pecaSort==='cat') sorted.sort((a,b)=>(a.categoria||'Geral').localeCompare(b.categoria||'Geral'));
+
+  const m=machines.find(x=>x.id===curId);
+  $('print-pecas-title').textContent=`Peças — ${m?m.nome:''}`;
+
+  if(pecaSort==='cat'){
+    const grupos={};
+    sorted.forEach(p=>{ const c=p.categoria||'Geral'; if(!grupos[c])grupos[c]=[]; grupos[c].push(p); });
+    el.innerHTML=Object.entries(grupos).map(([cat,pecas])=>`
+      <div class="peca-cat-group">
+        <div class="peca-cat-label"><i class="ti ti-tag" style="font-size:14px"></i>${cat} <span style="font-weight:400">(${pecas.length})</span></div>
+        ${pecas.map(p=>pecaRow(p)).join('')}
+      </div>`).join('');
+  } else {
+    el.innerHTML=sorted.map(p=>pecaRow(p)).join('');
+  }
+}
+
+function pecaRow(p){
+  return `<div class="prow">
+    <span class="pqty">${p.qty}×</span>
+    <div style="flex:1">
+      <div class="pnome">${p.nome}</div>
+      ${p.categoria?`<div class="pobs" style="color:var(--green-dark)">${p.categoria}</div>`:''}
+      ${p.obs?`<div class="pobs">${p.obs}</div>`:''}
+    </div>
+    <button class="btn danger sm" onclick="delPeca('${p.id}')"><i class="ti ti-trash"></i></button>
+  </div>`;
+}
+
+function imprimirPecas(){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('print-active'));
+  $('v-detalhe').classList.add('print-active');
+  window.print();
+}
+
+async function salvarPeca(){
+  const qty=parseInt($('p-qty').value)||0, nome=$('p-nome').value.trim();
+  if(!qty||!nome){ toast('Preencha quantidade e nome'); return; }
+  const {error}=await db.from('pecas').insert({machine_id:curId,qty,nome,categoria:$('p-cat').value.trim(),obs:$('p-obs').value.trim()});
+  if(error){ toast('Erro ao salvar'); return; }
+  closeSheet('sh-peca');
+  ['p-qty','p-nome','p-cat','p-obs'].forEach(id=>$(id).value='');
+  toast('Peça adicionada!'); renderPecas();
+}
+
+async function delPeca(id){ if(!confirm('Remover?'))return; await db.from('pecas').delete().eq('id',id); renderPecas(); }
+
+/* PDFs */
+function selPdf(input){
+  const f=input.files[0]; if(!f)return;
+  const r=new FileReader();
+  r.onload=e=>{ tmpPdf=e.target.result; tmpPdfNome=f.name; const ul=$('pdf-ul'); ul.classList.add('sel'); ul.innerHTML=`<i class="ti ti-check"></i> ${f.name}<input type="file" accept=".pdf,application/pdf" onchange="selPdf(this)">`; };
+  r.readAsDataURL(f);
+}
+
+async function renderPdfs(){
+  const {data}=await db.from('pdfs').select('*').eq('machine_id',curId).order('created_at');
+  const el=$('pdf-list');
+  if(!(data&&data.length)){ el.innerHTML='<div class="empty"><i class="ti ti-file-type-pdf"></i><div class="empty-t">Sem PDFs</div><div class="empty-s">Adicione os manuais por parte</div></div>'; return; }
+  const g={};data.forEach(p=>{ if(!g[p.parte])g[p.parte]=[]; g[p.parte].push(p); });
+  el.innerHTML=Object.entries(g).map(([parte,pdfs])=>`<div class="pdf-group"><div class="pdf-glabel">${parte}</div>${pdfs.map(p=>`<div class="pdfrow"><i class="ti ti-file-type-pdf icon"></i><div class="pdfinfo"><div class="pdfnome">${p.nome}</div></div><div style="display:flex;gap:6px"><button class="btn blue sm" onclick="abrirPdf('${p.id}')"><i class="ti ti-eye"></i></button><button class="btn danger sm" onclick="delPdf('${p.id}')"><i class="ti ti-trash"></i></button></div></div>`).join('')}</div>`).join('');
+}
+
+async function salvarPdf(){
+  const parte=$('pdf-parte').value.trim();
+  if(!parte){ toast('Informe a parte'); return; }
+  if(!tmpPdf){ toast('Selecione um PDF'); return; }
+  toast('Enviando PDF...');
+  const {error}=await db.from('pdfs').insert({machine_id:curId,parte,nome:tmpPdfNome,data:tmpPdf});
+  if(error){ toast('Erro ao salvar PDF'); return; }
+  closeSheet('sh-pdf');
+  $('pdf-parte').value='';
+  const ul=$('pdf-ul'); ul.classList.remove('sel');
+  ul.innerHTML=`<i class="ti ti-paperclip"></i> Selecionar PDF<input type="file" accept=".pdf,application/pdf" onchange="selPdf(this)">`;
+  tmpPdf=null; tmpPdfNome=null;
+  toast('PDF salvo!'); renderPdfs();
+}
+
+async function abrirPdf(id){
+  const {data}=await db.from('pdfs').select('data').eq('id',id).single();
+  if(!data)return;
+  const b=atob(data.data.split(',')[1]),ab=new ArrayBuffer(b.length),ia=new Uint8Array(ab);
+  for(let i=0;i<b.length;i++)ia[i]=b.charCodeAt(i);
+  window.open(URL.createObjectURL(new Blob([ab],{type:'application/pdf'})),'_blank');
+}
+
+async function delPdf(id){ if(!confirm('Remover PDF?'))return; await db.from('pdfs').delete().eq('id',id); renderPdfs(); }
+
+/* SAÍDAS */
+async function abrirSaida(){
+  const m=machines.find(x=>x.id===curId);
+  const prefix=m&&m.modelo?m.modelo+' ':'';
+  const {data:all}=await db.from('saidas').select('codigo');
+  const last=all&&all.length?Math.max(...all.map(s=>parseInt(s.codigo.replace(/\D/g,''))||0)):1000;
+  $('s-cod').value=prefix+(last+1);
+  $('s-data').value=new Date().toISOString().split('T')[0];
+  $('s-dest').value=''; $('s-obs').value='';
+  openSheet('sh-saida');
+}
+
+async function salvarSaida(){
+  const cod=$('s-cod').value.trim(), data=$('s-data').value;
+  if(!cod||!data){ toast('Código e data obrigatórios'); return; }
+  const m=machines.find(x=>x.id===curId);
+  const {data:row,error}=await db.from('saidas').insert({machine_id:curId,machine_nome:m.nome,machine_modelo:m.modelo,codigo:cod,data,dest:$('s-dest').value.trim(),obs:$('s-obs').value.trim()}).select().single();
+  if(error){ toast('Erro ao registrar'); return; }
+  allSaidas.unshift(row);
+  closeSheet('sh-saida');
+  toast('Saída registrada!'); renderSaidasMaq();
+}
+
+async function renderSaidasMaq(){
+  const {data}=await db.from('saidas').select('*').eq('machine_id',curId).order('created_at',{ascending:false});
+  const el=$('saidas-maq-list');
+  if(!(data&&data.length)){ el.innerHTML='<div class="empty"><i class="ti ti-package"></i><div class="empty-t">Sem saídas</div><div class="empty-s">Registre quando esta máquina for concluída</div></div>'; return; }
+  el.innerHTML=data.map(s=>sCard(s)).join('');
+}
+
+async function renderSaidasGlobal(){
+  const {data}=await db.from('saidas').select('*').order('created_at',{ascending:false});
+  allSaidas=data||[];
+  saidasFiltradas=[...allSaidas];
+  $('saidas-stats').innerHTML=`<div class="stat-card"><div class="stat-val">${allSaidas.length}</div><div class="stat-lbl">Saídas totais</div></div><div class="stat-card"><div class="stat-val">${machines.length}</div><div class="stat-lbl">Máquinas</div></div>`;
+  aplicarFiltros();
+}
+
+function aplicarFiltros(){
+  const q=($('busca-saidas').value||'').toLowerCase();
+  const de=$('f-de').value;
+  const ate=$('f-ate').value;
+  saidasFiltradas=allSaidas.filter(s=>{
+    if(q&&!s.codigo.toLowerCase().includes(q)&&!(s.machine_nome||'').toLowerCase().includes(q)) return false;
+    if(de&&s.data<de) return false;
+    if(ate&&s.data>ate) return false;
+    return true;
+  });
+  const el=$('saidas-list');
+  if(!saidasFiltradas.length){ el.innerHTML='<div class="empty"><i class="ti ti-package-export"></i><div class="empty-t">'+(allSaidas.length?'Nenhum resultado':'Sem saídas')+'</div><div class="empty-s">'+(allSaidas.length?'Tente ajustar os filtros':'Registre saídas pelo catálogo')+'</div></div>'; return; }
+  el.innerHTML=saidasFiltradas.map(s=>sCard(s)).join('');
+}
+
+function limparFiltros(){
+  $('f-de').value=''; $('f-ate').value=''; $('busca-saidas').value='';
+  aplicarFiltros();
+}
+
+function sCard(s){
+  return `<div class="scard"><div class="stop"><span class="scod">${s.codigo}</span><span class="smaq">${s.machine_nome||''}</span></div><div class="smeta">${s.data?`<span><i class="ti ti-calendar"></i>${new Date(s.data+'T12:00').toLocaleDateString('pt-BR')}</span>`:''} ${s.dest?`<span><i class="ti ti-map-pin"></i>${s.dest}</span>`:''} ${s.obs?`<span><i class="ti ti-message"></i>${s.obs}</span>`:''}</div></div>`;
+}
+
+/* EXPORTAR CSV */
+function exportarCSV(){
+  if(!saidasFiltradas.length){ toast('Nenhuma saída para exportar'); return; }
+  const header='Código,Máquina,Modelo,Data,Destino,Observação';
+  const rows=saidasFiltradas.map(s=>[
+    s.codigo,
+    `"${(s.machine_nome||'').replace(/"/g,'""')}"`,
+    s.machine_modelo||'',
+    s.data?new Date(s.data+'T12:00').toLocaleDateString('pt-BR'):'',
+    `"${(s.dest||'').replace(/"/g,'""')}"`,
+    `"${(s.obs||'').replace(/"/g,'""')}"`
+  ].join(','));
+  const csv='\uFEFF'+header+'\n'+rows.join('\n');
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download=`saidas_nankin_${new Date().toISOString().split('T')[0]}.csv`;
+  a.click(); URL.revokeObjectURL(url);
+  toast('CSV exportado!');
+}
+
+/* EXPORTAR PDF SAÍDAS */
+function exportarPDFSaidas(){
+  if(!saidasFiltradas.length){ toast('Nenhuma saída para exportar'); return; }
+  const de=$('f-de').value, ate=$('f-ate').value;
+  const periodo=de||ate?`Período: ${de?new Date(de+'T12:00').toLocaleDateString('pt-BR'):'início'} a ${ate?new Date(ate+'T12:00').toLocaleDateString('pt-BR'):'hoje'}`:'Todas as saídas';
+  const linhas=saidasFiltradas.map(s=>`
+    <tr>
+      <td style="font-family:monospace;font-weight:600;background:#e8f5ec;padding:8px 10px;border:1px solid #c8e0c8">${s.codigo}</td>
+      <td style="padding:8px 10px;border:1px solid #c8e0c8">${s.machine_nome||''}</td>
+      <td style="padding:8px 10px;border:1px solid #c8e0c8">${s.data?new Date(s.data+'T12:00').toLocaleDateString('pt-BR'):''}</td>
+      <td style="padding:8px 10px;border:1px solid #c8e0c8">${s.dest||'—'}</td>
+      <td style="padding:8px 10px;border:1px solid #c8e0c8;color:#5a7a62">${s.obs||'—'}</td>
+    </tr>`).join('');
+  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Saídas Nankin Machines</title>
+  <style>body{font-family:Arial,sans-serif;padding:24px;color:#0f2d18}h1{font-size:20px;margin-bottom:4px}p{font-size:13px;color:#5a7a62;margin-bottom:16px}table{width:100%;border-collapse:collapse;font-size:13px}th{background:#1e7d3e;color:#fff;padding:9px 10px;text-align:left;border:1px solid #145e2c}tr:nth-child(even) td{background:#f9fcfa}.total{margin-top:12px;font-size:13px;color:#5a7a62}</style>
+  <script>
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>{
+    navigator.serviceWorker.register('./sw.js').catch(()=>{});
+  });
+}
+</script>
+</head><body>
+  <h1>Nankin Machines — Relatório de Saídas</h1>
+  <p>${periodo} · Gerado em ${new Date().toLocaleDateString('pt-BR')}</p>
+  <table><thead><tr><th>Código</th><th>Máquina</th><th>Data</th><th>Destino</th><th>Obs.</th></tr></thead><tbody>${linhas}</tbody></table>
+  <p class="total">Total: ${saidasFiltradas.length} saída${saidasFiltradas.length!==1?'s':''}</p>
+  <script>window.onload=()=>window.print()<\/script></body></html>`;
+  const w=window.open('','_blank');
+  w.document.write(html); w.document.close();
+}
+
+/* IMPRIMIR PEÇAS */
+function imprimirPecas(){
+  const m=machines.find(x=>x.id===curId);
+  // Pega as peças do DOM atual
+  const rows=Array.from(document.querySelectorAll('#peca-list .prow')).map(r=>{
+    const qty=r.querySelector('.pqty').textContent;
+    const nome=r.querySelector('.pnome').textContent;
+    const obs=r.querySelectorAll('.pobs');
+    const cat=obs[0]?obs[0].textContent:'';
+    const obsText=obs[1]?obs[1].textContent:'';
+    return `<tr><td style="font-family:monospace;font-weight:600;padding:8px 10px;border:1px solid #c8e0c8;background:#e8f5ec">${qty}</td><td style="padding:8px 10px;border:1px solid #c8e0c8">${nome}</td><td style="padding:8px 10px;border:1px solid #c8e0c8;color:#1e7d3e">${cat}</td><td style="padding:8px 10px;border:1px solid #c8e0c8;color:#5a7a62">${obsText}</td></tr>`;
+  }).join('');
+  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Peças — ${m?m.nome:''}</title>
+  <style>body{font-family:Arial,sans-serif;padding:24px;color:#0f2d18}h1{font-size:20px;margin-bottom:4px}p{font-size:13px;color:#5a7a62;margin-bottom:16px}table{width:100%;border-collapse:collapse;font-size:13px}th{background:#1e7d3e;color:#fff;padding:9px 10px;text-align:left;border:1px solid #145e2c}tr:nth-child(even) td{background:#f9fcfa}</style>
+  <script>
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>{
+    navigator.serviceWorker.register('./sw.js').catch(()=>{});
+  });
+}
+</script>
+</head><body>
+  <h1>Lista de Peças — ${m?m.nome:''}</h1>
+  <p>${m&&m.modelo?'Modelo: '+m.modelo+' · ':''}Gerado em ${new Date().toLocaleDateString('pt-BR')}</p>
+  <table><thead><tr><th>Qtd</th><th>Peça</th><th>Categoria</th><th>Observação</th></tr></thead><tbody>${rows}</tbody></table>
+  <script>window.onload=()=>window.print()<\/script></body></html>`;
+  const w=window.open('','_blank');
+  w.document.write(html); w.document.close();
+}
+
+async function renderSobre(){
+  $('s-nmaq').textContent=machines.length;
+  $('s-nsai').textContent=allSaidas.length;
+  const {count}=await db.from('pdfs').select('*',{count:'exact',head:true});
+  $('s-npdfs').textContent=count||0;
+}
+
+function limparDados(){ localStorage.clear(); toast('Dados locais limpos'); }
+
+// PWA INSTALL
+let deferredPrompt = null;
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredPrompt = e;
+  setTimeout(() => {
+    const b = document.getElementById('install-banner');
+    if(b && !localStorage.getItem('nankin_installed')) b.classList.add('show');
+  }, 3000);
+});
+function instalarApp(){
+  if(deferredPrompt){
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.then(r=>{
+      if(r.outcome==='accepted'){ localStorage.setItem('nankin_installed','1'); }
+      fecharBanner(); deferredPrompt=null;
+    });
+  } else {
+    alert('Para instalar:\n\nAndroid: toque no menu do Chrome (⋮) → "Adicionar à tela inicial"\n\niPhone: toque em Compartilhar (□↑) → "Adicionar à Tela de Início"');
+  }
+}
+function fecharBanner(){
+  document.getElementById('install-banner').classList.remove('show');
+}
+window.addEventListener('appinstalled', () => {
+  localStorage.setItem('nankin_installed','1');
+  fecharBanner();
+});
+init();
+</script>
+</body>
+</html>
