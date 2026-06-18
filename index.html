@@ -265,6 +265,10 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
         <p style="font-size:12px;color:var(--muted)">Toque na foto para ampliar.</p>
       </div>
       <div id="it-pecas" style="display:none">
+        <div class="search-wrap" style="margin-bottom:10px">
+          <i class="ti ti-search"></i>
+          <input class="search-input" id="busca-pecas" placeholder="Buscar peça ou categoria..." oninput="renderPecas()">
+        </div>
         <div class="peca-toolbar">
           <button class="sort-btn active" id="sort-az" onclick="sortPecas('az')"><i class="ti ti-sort-ascending-letters" style="font-size:15px"></i> A-Z</button>
           <button class="sort-btn" id="sort-qty" onclick="sortPecas('qty')"><i class="ti ti-sort-descending-numbers" style="font-size:15px"></i> Qtd</button>
@@ -540,11 +544,13 @@ async function renderPecas(){
   var res = await db.from('pecas').select('*').eq('machine_id', curId);
   var data = res.data || [];
   var el = g('peca-list');
-  if(!data.length){
-    el.innerHTML = '<div class="empty"><i class="ti ti-bolt"></i><div class="empty-t">Sem pecas</div><div class="empty-s">Adicione os componentes desta maquina</div></div>';
+  var q = (g('busca-pecas') ? g('busca-pecas').value || '' : '').toLowerCase();
+  var filtered = q ? data.filter(function(p){ return p.nome.toLowerCase().includes(q) || (p.categoria||'').toLowerCase().includes(q) || (p.obs||'').toLowerCase().includes(q); }) : data;
+  if(!filtered.length){
+    el.innerHTML = '<div class="empty"><i class="ti ti-bolt"></i><div class="empty-t">' + (data.length ? 'Nenhum resultado' : 'Sem pecas') + '</div><div class="empty-s">' + (data.length ? 'Tente outro termo' : 'Adicione os componentes desta maquina') + '</div></div>';
     return;
   }
-  var sorted = data.slice();
+  var sorted = filtered.slice();
   if(pecaSort === 'az') sorted.sort(function(a,b){ return a.nome.localeCompare(b.nome); });
   else if(pecaSort === 'qty') sorted.sort(function(a,b){ return b.qty - a.qty; });
   else if(pecaSort === 'cat') sorted.sort(function(a,b){ return (a.categoria||'Geral').localeCompare(b.categoria||'Geral'); });
