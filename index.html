@@ -13,6 +13,8 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="./db-local.js"></script>
+<script src="./sync.js"></script>
 <script>
 if('serviceWorker' in navigator){
   window.addEventListener('load',function(){
@@ -24,41 +26,57 @@ if('serviceWorker' in navigator){
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 :root{
-  --green:#1e7d3e;--green-dark:#145e2c;--green-light:#e8f5ec;
+  --green:#1e7d3e;--green-dark:#145e2c;--green-light:#e8f5ec;--green-press:#0f4a20;
   --font:'IBM Plex Sans',sans-serif;--mono:'IBM Plex Mono',monospace;
-  --bg:#f0f7f0;--surface:#fff;--border:#d0e8d8;
-  --text:#0f2d18;--muted:#5a7a62;--danger:#c0392b;--blue:#1a56a0;
+  --bg:#f0f7f0;--surface:#fff;--border:#d0e8d8;--border-strong:#b8dfc6;
+  --text:#0f2d18;--muted:#5a7a62;--muted-2:#8aa492;--danger:#c0392b;--danger-press:#a52f22;--blue:#1a56a0;
+  --radius:12px;--radius-sm:8px;--radius-lg:18px;
+  --shadow-card:0 1px 2px rgba(15,45,24,.04),0 1px 1px rgba(15,45,24,.03);
+  --shadow-pop:0 8px 28px rgba(15,45,24,.14);
+  --ease:cubic-bezier(.4,0,.2,1);
 }
-html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--font);font-size:15px;overflow:hidden}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--font);font-size:15px;line-height:1.45;overflow:hidden;-webkit-font-smoothing:antialiased}
+@media (prefers-reduced-motion: reduce){*{animation-duration:.001ms !important;transition-duration:.001ms !important}}
 .app{display:flex;flex-direction:column;height:100%;max-width:430px;margin:0 auto;background:var(--bg)}
-.topbar{background:var(--green);padding:0 16px;height:54px;display:flex;align-items:center;gap:10px;flex-shrink:0}
-.logo{font-family:var(--mono);font-size:15px;font-weight:500;color:#fff;flex:1}
+.topbar{background:var(--green);padding:0 16px;height:54px;display:flex;align-items:center;gap:10px;flex-shrink:0;transition:background .2s var(--ease)}
+.logo{font-family:var(--mono);font-size:15px;font-weight:500;color:#fff;flex:1;letter-spacing:.2px}
 .logo span{color:#a8dbb8}
-.topbar-btn{background:rgba(255,255,255,.18);border:none;color:#fff;border-radius:7px;font-size:13px;font-family:var(--font);font-weight:500;padding:7px 13px;cursor:pointer;display:flex;align-items:center;gap:5px}
-.topbar-btn:active{background:rgba(255,255,255,.3)}
-.bottomnav{height:62px;background:var(--surface);border-top:0.5px solid var(--border);display:flex;flex-shrink:0;padding-bottom:env(safe-area-inset-bottom)}
-.bnav{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;border:none;background:none;cursor:pointer;color:var(--muted);font-size:11px;font-family:var(--font);padding:8px 0}
-.bnav i{font-size:24px}
-.bnav.active{color:var(--green)}
+.topbar-btn{background:rgba(255,255,255,.18);border:none;color:#fff;border-radius:var(--radius-sm);font-size:13px;font-family:var(--font);font-weight:600;padding:7px 13px;cursor:pointer;display:flex;align-items:center;gap:5px;transition:background .15s var(--ease),transform .1s var(--ease)}
+.topbar-btn:active{background:rgba(255,255,255,.32);transform:scale(.96)}
+.net-pill{display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:#fff;background:rgba(0,0,0,.18);border-radius:20px;padding:5px 10px 5px 8px;white-space:nowrap;transition:background .2s var(--ease)}
+.net-pill.offline{background:rgba(192,57,43,.35)}
+.net-pill.syncing{background:rgba(0,0,0,.18)}
+.net-dot{width:7px;height:7px;border-radius:50%;background:#a8dbb8;flex-shrink:0}
+.net-pill.offline .net-dot{background:#ffb4a8;animation:netBlink 1.2s ease-in-out infinite}
+.net-pill.syncing .net-dot{background:#ffe08a;animation:netBlink .8s ease-in-out infinite}
+@keyframes netBlink{0%,100%{opacity:1}50%{opacity:.35}}
+.bottomnav{height:62px;background:var(--surface);border-top:0.5px solid var(--border);display:flex;flex-shrink:0;padding-bottom:env(safe-area-inset-bottom);box-shadow:0 -1px 8px rgba(15,45,24,.03)}
+.bnav{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;border:none;background:none;cursor:pointer;color:var(--muted-2);font-size:11px;font-weight:500;font-family:var(--font);padding:8px 0;position:relative;transition:color .15s var(--ease)}
+.bnav i{font-size:23px;transition:transform .18s var(--ease)}
+.bnav.active{color:var(--green);font-weight:600}
+.bnav.active i{transform:translateY(-1px)}
+.bnav.active::before{content:'';position:absolute;top:0;left:50%;transform:translateX(-50%);width:28px;height:2.5px;background:var(--green);border-radius:0 0 3px 3px}
+.bnav:active{color:var(--green-press)}
 .scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
 .main{padding:16px}
 .view{display:none}
-.view.on{display:block}
+.view.on{display:block;animation:viewIn .22s var(--ease)}
+@keyframes viewIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
 .stats-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
-.stat-card{background:var(--surface);border:0.5px solid var(--border);border-radius:12px;padding:14px 16px}
-.stat-val{font-family:var(--mono);font-size:28px;font-weight:500;color:var(--green);line-height:1.1}
-.stat-lbl{font-size:12px;color:var(--muted);margin-top:4px}
+.stat-card{background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius);padding:14px 16px;box-shadow:var(--shadow-card);transition:transform .15s var(--ease)}
+.stat-val{font-family:var(--mono);font-size:28px;font-weight:600;color:var(--green);line-height:1.1;letter-spacing:-.5px}
+.stat-lbl{font-size:12px;font-weight:500;color:var(--muted);margin-top:4px}
 .search-wrap{position:relative;margin-bottom:10px}
-.search-wrap i{position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:18px;color:var(--muted);pointer-events:none}
-.search-input{background:var(--surface);border:0.5px solid var(--border);border-radius:10px;padding:11px 14px 11px 38px;font-family:var(--font);font-size:14px;color:var(--text);width:100%;outline:none}
-.search-input:focus{border-color:var(--green)}
-.mcard{background:var(--surface);border:0.5px solid var(--border);border-radius:12px;padding:14px;display:flex;gap:12px;cursor:pointer;margin-bottom:10px}
-.mcard:active{background:var(--green-light)}
+.search-wrap i{position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:18px;color:var(--muted-2);pointer-events:none}
+.search-input{background:var(--surface);border:0.5px solid var(--border);border-radius:10px;padding:11px 14px 11px 38px;font-family:var(--font);font-size:14px;color:var(--text);width:100%;outline:none;transition:border-color .15s var(--ease),box-shadow .15s var(--ease)}
+.search-input:focus{border-color:var(--green);box-shadow:0 0 0 3px var(--green-light)}
+.mcard{background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius);padding:14px;display:flex;gap:12px;cursor:pointer;margin-bottom:10px;box-shadow:var(--shadow-card);transition:transform .12s var(--ease),box-shadow .12s var(--ease)}
+.mcard:active{background:var(--green-light);transform:scale(.985)}
 .mthumb{width:72px;height:72px;border-radius:10px;background:var(--green-light);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;border:0.5px solid var(--border)}
 .mthumb img{width:100%;height:100%;object-fit:cover}
 .mthumb i{font-size:32px;color:var(--green)}
 .minfo{flex:1;min-width:0}
-.mname{font-size:15px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:2px}
+.mname{font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:2px;letter-spacing:-.1px}
 .msub{font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:7px}
 .mtags{display:flex;gap:5px;flex-wrap:wrap}
 .pill{font-size:11px;padding:3px 8px;border-radius:20px;font-family:var(--mono);border:0.5px solid var(--border);color:var(--muted);background:var(--bg)}
@@ -81,8 +99,8 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
 .fadd span{font-size:11px}
 .peca-cat-group{margin-bottom:16px}
 .peca-cat-label{font-size:11px;font-weight:500;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);padding:8px 0 6px;border-bottom:0.5px solid var(--border);margin-bottom:8px;display:flex;align-items:center;gap:6px}
-.prow{background:var(--surface);border:0.5px solid var(--border);border-radius:10px;padding:12px 14px;display:flex;align-items:center;gap:10px;margin-bottom:8px}
-.pqty{font-family:var(--mono);font-size:16px;font-weight:500;color:var(--green);min-width:40px}
+.prow{background:var(--surface);border:0.5px solid var(--border);border-radius:10px;padding:12px 14px;display:flex;align-items:center;gap:10px;margin-bottom:8px;box-shadow:var(--shadow-card)}
+.pqty{font-family:var(--mono);font-size:16px;font-weight:600;color:var(--green);min-width:40px}
 .pnome{flex:1;font-size:14px}
 .pobs{font-size:12px;color:var(--muted)}
 .peca-toolbar{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
@@ -94,13 +112,35 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
 .pdfrow i.icon{font-size:22px;color:var(--blue);flex-shrink:0}
 .pdfinfo{flex:1;min-width:0}
 .pdfnome{font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.scard{background:var(--surface);border:0.5px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px}
+.scard{background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:10px;box-shadow:var(--shadow-card)}
 .stop{display:flex;align-items:center;gap:10px;margin-bottom:8px}
-.scod{font-family:var(--mono);font-size:13px;font-weight:500;background:var(--green);color:#fff;padding:4px 10px;border-radius:6px}
-.smaq{font-size:14px;font-weight:500;flex:1}
+.scod{font-family:var(--mono);font-size:13px;font-weight:600;background:var(--green);color:#fff;padding:4px 10px;border-radius:6px}
+.smaq{font-size:14px;font-weight:600;flex:1}
 .smeta{display:flex;flex-wrap:wrap;gap:8px;font-size:13px;color:var(--muted)}
 .smeta span{display:flex;align-items:center;gap:5px}
 .smeta i{font-size:15px}
+
+.tl{position:relative;padding-left:22px}
+.tl::before{content:'';position:absolute;left:6px;top:6px;bottom:6px;width:1.5px;background:var(--border-strong)}
+.tl-item{position:relative;padding-bottom:18px}
+.tl-item:last-child{padding-bottom:0}
+.tl-dot{position:absolute;left:-22px;top:3px;width:13px;height:13px;border-radius:50%;background:var(--green);border:2.5px solid var(--surface);box-shadow:0 0 0 1.5px var(--green)}
+.tl-item.open .tl-dot{background:var(--surface);box-shadow:0 0 0 1.5px var(--blue)}
+.tl-card{background:var(--surface);border:0.5px solid var(--border);border-radius:10px;padding:12px 14px;box-shadow:var(--shadow-card)}
+.tl-top{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.tl-status{font-size:10px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;padding:2px 8px;border-radius:20px;background:var(--green-light);color:var(--green-dark)}
+.tl-status.open{background:#fff3e8;color:#a04010}
+.tl-date{font-size:12px;color:var(--muted);font-family:var(--mono);margin-left:auto}
+.tl-dest{font-size:13px;color:var(--muted);margin-top:2px}
+
+.confirm-ov{position:fixed;inset:0;background:rgba(8,20,12,0);z-index:80;display:none;align-items:center;justify-content:center;padding:24px;transition:background .2s var(--ease)}
+.confirm-ov.on{display:flex;background:rgba(8,20,12,.5)}
+.confirm-card{background:var(--surface);border-radius:var(--radius-lg);padding:22px 20px;width:100%;max-width:320px;box-shadow:var(--shadow-pop);text-align:center;transform:scale(.92);opacity:0;transition:transform .2s var(--ease),opacity .2s var(--ease)}
+.confirm-ov.on .confirm-card{transform:scale(1);opacity:1}
+.confirm-icon{width:52px;height:52px;border-radius:50%;background:#fdf0f0;color:var(--danger);display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:26px}
+.confirm-title{font-size:16px;font-weight:600;margin-bottom:6px}
+.confirm-msg{font-size:13px;color:var(--muted);line-height:1.5;margin-bottom:18px}
+.confirm-row{display:flex;gap:8px}
 .filtro-bar{background:var(--surface);border:0.5px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:12px;display:flex;flex-direction:column;gap:10px}
 .filtro-row{display:flex;gap:8px;align-items:flex-end}
 .filtro-group{display:flex;flex-direction:column;gap:4px;flex:1}
@@ -108,24 +148,28 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
 .filtro-input{background:var(--bg);border:0.5px solid var(--border);border-radius:7px;padding:9px 11px;font-family:var(--font);font-size:13px;color:var(--text);width:100%;outline:none;-webkit-appearance:none}
 .filtro-input:focus{border-color:var(--green)}
 .export-row{display:flex;gap:8px}
-.btn{background:var(--green);color:#fff;border:none;border-radius:9px;padding:12px 20px;font-family:var(--font);font-size:14px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:8px}
-.btn:active{background:var(--green-dark)}
+.btn{background:var(--green);color:#fff;border:none;border-radius:var(--radius-sm);padding:12px 20px;font-family:var(--font);font-size:14px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:8px;transition:background .12s var(--ease),transform .1s var(--ease);justify-content:center}
+.btn:active{background:var(--green-press);transform:scale(.97)}
 .btn.full{width:100%;justify-content:center}
 .btn.sec{background:var(--surface);color:var(--text);border:0.5px solid var(--border)}
-.btn.sec:active{background:var(--bg)}
+.btn.sec:active{background:var(--bg);transform:scale(.97)}
 .btn.blue{background:var(--blue)}
+.btn.blue:active{background:#143f78}
 .btn.danger{background:#fdf0f0;color:var(--danger);border:0.5px solid #f5c6c6}
+.btn.danger:active{background:#fbe2e2;transform:scale(.97)}
 .btn.sm{padding:8px 13px;font-size:12px;border-radius:7px}
 .btn.xs{padding:7px 11px;font-size:12px;border-radius:7px}
+.btn:disabled{opacity:.5;pointer-events:none}
 .fg{display:flex;flex-direction:column;gap:5px;margin-bottom:14px}
-.fl{font-size:11px;font-weight:500;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted)}
-.fi{background:var(--bg);border:0.5px solid var(--border);border-radius:9px;padding:12px 14px;color:var(--text);font-family:var(--font);font-size:15px;width:100%;-webkit-appearance:none;outline:none}
-.fi:focus{border-color:var(--green);background:#fff}
-.sheet-ov{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:50;display:none;align-items:flex-end;justify-content:center}
-.sheet-ov.on{display:flex}
-.sheet{background:var(--surface);border-radius:18px 18px 0 0;width:100%;max-width:430px;padding:16px 16px;padding-bottom:max(24px,env(safe-area-inset-bottom));max-height:88%;overflow-y:auto}
+.fl{font-size:11px;font-weight:600;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted)}
+.fi{background:var(--bg);border:0.5px solid var(--border);border-radius:9px;padding:12px 14px;color:var(--text);font-family:var(--font);font-size:15px;width:100%;-webkit-appearance:none;outline:none;transition:border-color .15s var(--ease),box-shadow .15s var(--ease)}
+.fi:focus{border-color:var(--green);background:#fff;box-shadow:0 0 0 3px var(--green-light)}
+.sheet-ov{position:fixed;inset:0;background:rgba(0,0,0,0);z-index:50;display:none;align-items:flex-end;justify-content:center;transition:background .22s var(--ease)}
+.sheet-ov.on{display:flex;background:rgba(8,20,12,.45)}
+.sheet{background:var(--surface);border-radius:var(--radius-lg) var(--radius-lg) 0 0;width:100%;max-width:430px;padding:16px 16px;padding-bottom:max(24px,env(safe-area-inset-bottom));max-height:88%;overflow-y:auto;box-shadow:var(--shadow-pop);transform:translateY(100%);transition:transform .26s var(--ease)}
+.sheet-ov.on .sheet{transform:translateY(0)}
 .shandle{width:32px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 14px}
-.stitle{font-size:16px;font-weight:500;margin-bottom:16px}
+.stitle{font-size:16px;font-weight:600;margin-bottom:16px;letter-spacing:-.1px}
 .sfoot{display:flex;gap:10px;margin-top:4px}
 .ulabel{background:var(--bg);border:0.5px solid var(--border);border-radius:9px;padding:12px 14px;font-family:var(--font);font-size:14px;color:var(--muted);cursor:pointer;position:relative;text-align:center;display:block;width:100%}
 .ulabel input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
@@ -136,19 +180,25 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
 .lb-x{position:fixed;top:14px;right:14px;background:rgba(255,255,255,.15);border:none;color:#fff;font-size:20px;width:42px;height:42px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:202}
 .lb-hint{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);color:rgba(255,255,255,.4);font-size:11px;pointer-events:none;white-space:nowrap}
 .loading{position:fixed;inset:0;background:var(--green);z-index:999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;color:#fff}
-.loading-logo{font-family:var(--mono);font-size:24px;font-weight:500}
+.loading img{animation:logoIn .6s var(--ease) both, pulse 1.8s ease-in-out .6s infinite}
+@keyframes logoIn{from{opacity:0;transform:scale(.85)}to{opacity:1;transform:scale(1)}}
+.loading-logo{font-family:var(--mono);font-size:24px;font-weight:600;animation:fadeIn .5s var(--ease) .3s both}
 .loading-logo span{color:#a8dbb8}
 .spinner{width:36px;height:36px;border:3px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
-@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.85;transform:scale(.96)}}
-.toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#1a1a1a;color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;z-index:300;opacity:0;transition:.3s;pointer-events:none;white-space:nowrap}
-.toast.show{opacity:1}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.9;transform:scale(.97)}}
+.toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(8px);background:#1a1a1a;color:#fff;padding:11px 18px;border-radius:10px;font-size:13px;font-weight:500;z-index:300;opacity:0;transition:opacity .2s var(--ease),transform .2s var(--ease);pointer-events:none;white-space:nowrap;display:flex;align-items:center;gap:8px;box-shadow:0 6px 20px rgba(0,0,0,.25)}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.toast.err{background:#3a1414}
+.toast i{font-size:16px;color:var(--green-light)}
+.toast.err i{color:#f5b0a8}
 .back-row{display:flex;align-items:center;gap:6px;color:var(--green);font-size:13px;font-weight:500;cursor:pointer;margin-bottom:14px}
 .back-row i{font-size:18px}
-.empty{text-align:center;padding:40px 20px;color:var(--muted)}
-.empty i{font-size:48px;margin-bottom:12px;display:block;color:var(--border)}
-.empty-t{font-size:15px;font-weight:500;color:var(--text);margin-bottom:6px}
-.empty-s{font-size:13px;line-height:1.5}
+.empty{text-align:center;padding:48px 20px;color:var(--muted);animation:fadeIn .3s var(--ease)}
+.empty i{font-size:44px;margin-bottom:14px;display:block;color:var(--border-strong)}
+.empty-t{font-size:15px;font-weight:600;color:var(--text);margin-bottom:6px}
+.empty-s{font-size:13px;line-height:1.5;color:var(--muted);max-width:240px;margin:0 auto}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
 .sobre-row{background:var(--surface);padding:14px 16px;display:flex;justify-content:space-between;align-items:center}
 .sobre-row+.sobre-row{border-top:0.5px solid var(--border)}
 .install-banner{position:fixed;bottom:70px;left:50%;transform:translateX(-50%);background:var(--text);color:#fff;border-radius:12px;padding:12px 16px;display:none;align-items:center;gap:12px;z-index:400;max-width:360px;width:calc(100% - 32px);box-shadow:0 4px 20px rgba(0,0,0,.25)}
@@ -174,6 +224,18 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
 </div>
 
 <div class="toast" id="toast"></div>
+
+<div class="confirm-ov" id="confirm-ov">
+  <div class="confirm-card">
+    <div class="confirm-icon"><i class="ti ti-trash" id="confirm-icon-i"></i></div>
+    <div class="confirm-title" id="confirm-title">Remover item?</div>
+    <div class="confirm-msg" id="confirm-msg">Essa ação não pode ser desfeita.</div>
+    <div class="confirm-row">
+      <button class="btn sec full" onclick="fecharConfirm()">Cancelar</button>
+      <button class="btn danger full" id="confirm-ok-btn" style="background:var(--danger);color:#fff;border:none"><i class="ti ti-trash"></i> Remover</button>
+    </div>
+  </div>
+</div>
 
 <div class="install-banner" id="install-banner">
   <div style="font-size:32px">📲</div>
@@ -246,6 +308,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
 <div class="app" id="app" style="display:none">
   <div class="topbar" id="topbar">
     <span class="logo" id="logo">Nankin <span>Machines</span></span>
+    <div class="net-pill" id="net-pill" style="display:none"><span class="net-dot"></span><span id="net-pill-txt">Offline</span></div>
     <div id="topbar-actions"></div>
   </div>
   <div class="scroll">
@@ -330,7 +393,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
         <div class="sobre-row"><span style="font-size:14px">Total de saídas</span><span id="s-nsai" style="font-family:var(--mono);color:var(--green);font-weight:500">—</span></div>
         <div class="sobre-row"><span style="font-size:14px">PDFs cadastrados</span><span id="s-npdfs" style="font-family:var(--mono);color:var(--green);font-weight:500">—</span></div>
       </div>
-      <button class="btn danger full" onclick="if(confirm('Tem certeza?'))localStorage.clear()"><i class="ti ti-trash"></i> Limpar dados locais</button>
+      <button class="btn danger full" onclick="askConfirm({title:'Limpar dados locais?',msg:'Isso não apaga nada do banco, só preferências salvas neste celular.',onConfirm:function(){localStorage.clear();toast('Dados locais limpos');}})"><i class="ti ti-trash"></i> Limpar dados locais</button>
     </div>
 
   </div>
@@ -352,13 +415,30 @@ var deferredPrompt = null;
 
 function g(id){ return document.getElementById(id); }
 
-function toast(msg, dur){
+function toast(msg, dur, isErr){
   dur = dur || 2200;
-  var t = g('toast'); t.textContent = msg; t.classList.add('show');
+  var t = g('toast');
+  t.innerHTML = '<i class="ti ti-' + (isErr ? 'alert-circle' : 'circle-check') + '"></i><span>' + msg + '</span>';
+  t.classList.toggle('err', !!isErr);
+  t.classList.add('show');
   setTimeout(function(){ t.classList.remove('show'); }, dur);
 }
 function openSheet(id){ g(id).classList.add('on'); }
 function closeSheet(id){ g(id).classList.remove('on'); }
+
+function askConfirm(opts){
+  g('confirm-title').textContent = opts.title || 'Remover item?';
+  g('confirm-msg').textContent = opts.msg || 'Essa ação não pode ser desfeita.';
+  var btn = g('confirm-ok-btn');
+  var newBtn = btn.cloneNode(true);
+  btn.parentNode.replaceChild(newBtn, btn);
+  newBtn.addEventListener('click', function(){
+    fecharConfirm();
+    opts.onConfirm();
+  });
+  g('confirm-ov').classList.add('on');
+}
+function fecharConfirm(){ g('confirm-ov').classList.remove('on'); }
 var _z = { scale:1, max:5, tx:0, ty:0, stx:0, sty:0, sdx:0, sdy:0, ss:1, sd:0, lastTap:0 };
 
 function closeLb(){
@@ -435,21 +515,73 @@ window.addEventListener('appinstalled', function(){
   localStorage.setItem('nankin_installed','1'); fecharBanner();
 });
 
+function updateNetPill(status){
+  var pill = g('net-pill'); var txt = g('net-pill-txt');
+  if(!pill) return;
+  if(status === 'offline' || !navigator.onLine){
+    pill.style.display = 'flex'; pill.className = 'net-pill offline'; txt.textContent = 'Offline';
+  } else if(status === 'syncing'){
+    pill.style.display = 'flex'; pill.className = 'net-pill syncing'; txt.textContent = 'Sincronizando...';
+  } else if(status === 'queued'){
+    NankinDB.queueCount().then(function(n){
+      pill.style.display = 'flex'; pill.className = 'net-pill syncing';
+      txt.textContent = n + ' pendente' + (n!==1?'s':'');
+    });
+  } else {
+    NankinDB.queueCount().then(function(n){
+      if(n > 0){ pill.style.display = 'flex'; pill.className = 'net-pill syncing'; txt.textContent = n + ' pendente' + (n!==1?'s':''); }
+      else pill.style.display = 'none';
+    });
+  }
+}
+
 async function init(){
+  NankinSync.init(db);
+  NankinSync.onStatusChange(function(status){
+    updateNetPill(status);
+    if(status === 'online'){ toast('Conexão restabelecida, sincronizando...'); }
+    if(status === 'idle'){ carregarTudoLocal().then(function(){ if(g('v-maquinas').classList.contains('on')) renderMaquinas(); }); }
+  });
+  updateNetPill(navigator.onLine ? 'idle' : 'offline');
+
   try {
-    var r1 = await db.from('machines').select('*').order('created_at');
-    var r2 = await db.from('saidas').select('*').order('created_at', { ascending: false });
-    machines = r1.data || [];
-    allSaidas = r2.data || [];
-    setTimeout(function(){
+    if(navigator.onLine){
+      var r1 = await db.from('machines').select('*').order('created_at');
+      var r2 = await db.from('saidas').select('*').order('created_at', { ascending: false });
+      machines = r1.data || [];
+      allSaidas = r2.data || [];
+      if(machines.length) NankinDB.putMany('machines', machines);
+      if(allSaidas.length) NankinDB.putMany('saidas', allSaidas);
+      // baixa o resto em segundo plano sem travar a tela
+      NankinSync.refreshLocalCache();
+      NankinSync.processQueue();
+    } else {
+      await carregarTudoLocal();
+    }
+    g('loading').style.display = 'none';
+    g('app').style.display = 'flex';
+    initLbZoom();
+    goView('maquinas');
+  } catch(e) {
+    // Falhou a rede no meio -> tenta cache local antes de desistir
+    try {
+      await carregarTudoLocal();
       g('loading').style.display = 'none';
       g('app').style.display = 'flex';
       initLbZoom();
       goView('maquinas');
-    }, 7000);
-  } catch(e) {
-    g('loading').innerHTML = '<div style="text-align:center;padding:20px;color:#fff"><div style="font-size:48px;margin-bottom:12px">oops</div><div style="font-size:16px">Erro ao conectar</div><div style="font-size:13px;opacity:.8;margin-top:8px">Verifique sua conexao</div></div>';
+      toast('Sem conexão. Mostrando dados salvos.', 3000, true);
+    } catch(e2) {
+      g('loading').innerHTML = '<div style="text-align:center;padding:20px;color:#fff"><div style="font-size:48px;margin-bottom:12px">oops</div><div style="font-size:16px">Erro ao carregar</div><div style="font-size:13px;opacity:.8;margin-top:8px">Sem dados salvos neste celular ainda</div></div>';
+    }
   }
+}
+
+async function carregarTudoLocal(){
+  machines = await NankinDB.getAll('machines');
+  allSaidas = await NankinDB.getAll('saidas');
+  allSaidas.sort(function(a,b){ return (b.created_at||'').localeCompare(a.created_at||''); });
+  machines.sort(function(a,b){ return (a.created_at||'').localeCompare(b.created_at||''); });
 }
 
 function goView(view){
@@ -490,37 +622,54 @@ function renderMaquinas(){
       '<i class="ti ti-chevron-right mchev"></i></div>';
   }).join('');
   list.forEach(function(m){
-    Promise.all([
-      db.from('fotos').select('id,data').eq('machine_id', m.id).limit(1),
-      db.from('pecas').select('id').eq('machine_id', m.id),
-      db.from('pdfs').select('id').eq('machine_id', m.id)
-    ]).then(function(results){
-      var fotos = results[0].data, pecas = results[1].data, pdfs = results[2].data;
-      var th = g('thumb-' + m.id);
-      if(th && fotos && fotos.length) th.innerHTML = '<img src="' + fotos[0].data + '" alt="">';
-      var tg = g('tags-' + m.id);
-      if(tg){
-        var tags = [];
-        if(fotos && fotos.length) tags.push('<span class="pill g"><i class="ti ti-photo" style="font-size:11px"></i> foto</span>');
-        if(pecas && pecas.length) tags.push('<span class="pill o"><i class="ti ti-bolt" style="font-size:11px"></i> ' + pecas.length + '</span>');
-        if(pdfs && pdfs.length) tags.push('<span class="pill b"><i class="ti ti-file-type-pdf" style="font-size:11px"></i> ' + pdfs.length + '</span>');
-        tg.innerHTML = tags.join('');
-      }
-    });
+    if(navigator.onLine){
+      Promise.all([
+        db.from('fotos').select('id,data').eq('machine_id', m.id).limit(1),
+        db.from('pecas').select('id').eq('machine_id', m.id),
+        db.from('pdfs').select('id').eq('machine_id', m.id)
+      ]).then(function(results){
+        var fotos = results[0].data, pecas = results[1].data, pdfs = results[2].data;
+        pintarCardMaquina(m.id, fotos, pecas, pdfs);
+      });
+    } else {
+      Promise.all([
+        NankinDB.getByMachine('fotos', m.id),
+        NankinDB.getByMachine('pecas', m.id),
+        NankinDB.getByMachine('pdfs', m.id)
+      ]).then(function(results){
+        pintarCardMaquina(m.id, results[0].slice(0,1), results[1], results[2]);
+      });
+    }
   });
+}
+
+function pintarCardMaquina(id, fotos, pecas, pdfs){
+  var th = g('thumb-' + id);
+  if(th && fotos && fotos.length) th.innerHTML = '<img src="' + fotos[0].data + '" alt="">';
+  var tg = g('tags-' + id);
+  if(tg){
+    var tags = [];
+    if(fotos && fotos.length) tags.push('<span class="pill g"><i class="ti ti-photo" style="font-size:11px"></i> foto</span>');
+    if(pecas && pecas.length) tags.push('<span class="pill o"><i class="ti ti-bolt" style="font-size:11px"></i> ' + pecas.length + '</span>');
+    if(pdfs && pdfs.length) tags.push('<span class="pill b"><i class="ti ti-file-type-pdf" style="font-size:11px"></i> ' + pdfs.length + '</span>');
+    tg.innerHTML = tags.join('');
+  }
 }
 
 async function salvarMaq(){
   var nome = g('n-nome').value.trim();
-  if(!nome){ toast('Informe o nome'); return; }
-  var res = await db.from('machines').insert({ nome: nome, modelo: g('n-modelo').value.trim().toUpperCase(), descricao: g('n-desc').value.trim() }).select().single();
-  if(res.error){ toast('Erro ao salvar'); return; }
-  machines.push(res.data);
+  if(!nome){ toast('Informe o nome', 2200, true); return; }
+  var novaMaq = { id: NankinDB.uuid(), nome: nome, modelo: g('n-modelo').value.trim().toUpperCase(), descricao: g('n-desc').value.trim(), created_at: new Date().toISOString() };
+  var r = await NankinSync.write('machines', 'insert', novaMaq);
+  var saved = (r.data && r.data.id) ? r.data : novaMaq;
+  await NankinDB.put('machines', saved);
+  machines.push(saved);
   closeSheet('sh-maq');
   ['n-nome','n-modelo','n-desc'].forEach(function(id){ g(id).value = ''; });
-  toast('Maquina criada!');
+  toast(r.offline ? 'Máquina criada (vai sincronizar)' : 'Máquina criada!');
+  updateNetPill(r.offline ? 'queued' : 'idle');
   renderStats(); renderMaquinas();
-  abrirDetalhe(res.data.id);
+  abrirDetalhe(saved.id);
 }
 
 async function abrirDetalhe(id){
@@ -552,13 +701,19 @@ function itab(tab, btn){
 }
 
 async function renderFotos(){
-  var res = await db.from('fotos').select('*').eq('machine_id', curId).order('created_at');
-  var data = res.data || [];
+  var data;
+  if(navigator.onLine){
+    var res = await db.from('fotos').select('*').eq('machine_id', curId).order('created_at');
+    data = res.data || [];
+    if(data.length) NankinDB.putMany('fotos', data);
+  } else {
+    data = await NankinDB.getByMachine('fotos', curId);
+    data.sort(function(a,b){ return (a.created_at||'').localeCompare(b.created_at||''); });
+  }
   var grid = g('foto-grid');
   grid.innerHTML = data.map(function(f, i){
     return '<div class="fcell"><img src="' + f.data + '" onclick="openLb(\'' + f.id + '\')"><button class="fdel" onclick="delFoto(\'' + f.id + '\',event)"><i class="ti ti-x"></i></button></div>';
   }).join('') + '<label class="fadd"><input type="file" accept="image/*" multiple onchange="addFotos(this)"><i class="ti ti-plus"></i><span>Foto</span></label>';
-  // Store fotos for lightbox
   window._currentFotos = data;
 }
 
@@ -576,25 +731,40 @@ function openLb(fotoId){
 async function addFotos(input){
   toast('Enviando fotos...');
   var files = Array.from(input.files);
+  var algumOffline = false;
   for(var i = 0; i < files.length; i++){
     await new Promise(function(resolve){
       var f = files[i];
       var r = new FileReader();
       r.onload = async function(e){
-        await db.from('fotos').insert({ machine_id: curId, data: e.target.result });
+        var nova = { id: NankinDB.uuid(), machine_id: curId, data: e.target.result, created_at: new Date().toISOString() };
+        var res = await NankinSync.write('fotos', 'insert', nova);
+        if(res.offline) algumOffline = true;
+        var saved = (res.data && res.data.id) ? res.data : nova;
+        await NankinDB.put('fotos', saved);
         resolve();
       };
       r.readAsDataURL(f);
     });
   }
-  toast('Fotos salvas!'); renderFotos();
+  toast(algumOffline ? 'Fotos salvas (vão sincronizar)' : 'Fotos salvas!');
+  if(algumOffline) updateNetPill('queued');
+  renderFotos();
 }
 
 async function delFoto(id, e){
   e.stopPropagation();
-  if(!confirm('Remover foto?')) return;
-  await db.from('fotos').delete().eq('id', id);
-  renderFotos();
+  askConfirm({
+    title: 'Remover foto?',
+    msg: 'Essa foto será apagada permanentemente.',
+    onConfirm: async function(){
+      var r = await NankinSync.write('fotos', 'delete', null, id);
+      await NankinDB.remove('fotos', id);
+      renderFotos();
+      toast(r.offline ? 'Foto removida (vai sincronizar)' : 'Foto removida');
+      if(r.offline) updateNetPill('queued');
+    }
+  });
 }
 
 function sortPecas(modo){
@@ -604,8 +774,14 @@ function sortPecas(modo){
 }
 
 async function renderPecas(){
-  var res = await db.from('pecas').select('*').eq('machine_id', curId);
-  var data = res.data || [];
+  var data;
+  if(navigator.onLine){
+    var res = await db.from('pecas').select('*').eq('machine_id', curId);
+    data = res.data || [];
+    if(data.length) NankinDB.putMany('pecas', data);
+  } else {
+    data = await NankinDB.getByMachine('pecas', curId);
+  }
   var el = g('peca-list');
   var q = (g('busca-pecas') ? g('busca-pecas').value || '' : '').toLowerCase();
   var filtered = q ? data.filter(function(p){ return p.nome.toLowerCase().includes(q) || (p.categoria||'').toLowerCase().includes(q) || (p.obs||'').toLowerCase().includes(q); }) : data;
@@ -653,18 +829,30 @@ function imprimirPecas(){
 async function salvarPeca(){
   var qty = parseInt(g('p-qty').value) || 0;
   var nome = g('p-nome').value.trim();
-  if(!qty || !nome){ toast('Preencha quantidade e nome'); return; }
-  var res = await db.from('pecas').insert({ machine_id: curId, qty: qty, nome: nome, categoria: g('p-cat').value.trim(), obs: g('p-obs').value.trim() });
-  if(res.error){ toast('Erro ao salvar'); return; }
+  if(!qty || !nome){ toast('Preencha quantidade e nome', 2200, true); return; }
+  var nova = { id: NankinDB.uuid(), machine_id: curId, qty: qty, nome: nome, categoria: g('p-cat').value.trim(), obs: g('p-obs').value.trim(), created_at: new Date().toISOString() };
+  var r = await NankinSync.write('pecas', 'insert', nova);
+  var saved = (r.data && r.data.id) ? r.data : nova;
+  await NankinDB.put('pecas', saved);
   closeSheet('sh-peca');
   ['p-qty','p-nome','p-cat','p-obs'].forEach(function(id){ g(id).value = ''; });
-  toast('Peca adicionada!'); renderPecas();
+  toast(r.offline ? 'Peça adicionada (vai sincronizar)' : 'Peça adicionada!');
+  if(r.offline) updateNetPill('queued');
+  renderPecas();
 }
 
 async function delPeca(id){
-  if(!confirm('Remover?')) return;
-  await db.from('pecas').delete().eq('id', id);
-  renderPecas();
+  askConfirm({
+    title: 'Remover peça?',
+    msg: 'Essa peça será apagada permanentemente da lista.',
+    onConfirm: async function(){
+      var r = await NankinSync.write('pecas', 'delete', null, id);
+      await NankinDB.remove('pecas', id);
+      renderPecas();
+      toast(r.offline ? 'Peça removida (vai sincronizar)' : 'Peça removida');
+      if(r.offline) updateNetPill('queued');
+    }
+  });
 }
 
 function selPdf(input){
@@ -679,8 +867,14 @@ function selPdf(input){
 }
 
 async function renderPdfs(){
-  var res = await db.from('pdfs').select('*').eq('machine_id', curId).order('created_at');
-  var data = res.data || [];
+  var data;
+  if(navigator.onLine){
+    var res = await db.from('pdfs').select('*').eq('machine_id', curId).order('created_at');
+    data = res.data || [];
+    if(data.length) NankinDB.putMany('pdfs', data);
+  } else {
+    data = await NankinDB.getByMachine('pdfs', curId);
+  }
   var el = g('pdf-list');
   if(!data.length){ el.innerHTML = '<div class="empty"><i class="ti ti-file-type-pdf"></i><div class="empty-t">Sem PDFs</div><div class="empty-s">Adicione os manuais por parte</div></div>'; return; }
   var grupos = {};
@@ -694,23 +888,36 @@ async function renderPdfs(){
 
 async function salvarPdf(){
   var parte = g('pdf-parte').value.trim();
-  if(!parte){ toast('Informe a parte'); return; }
-  if(!tmpPdf){ toast('Selecione um PDF'); return; }
+  if(!parte){ toast('Informe a parte', 2200, true); return; }
+  if(!tmpPdf){ toast('Selecione um PDF', 2200, true); return; }
   toast('Enviando PDF...');
-  var res = await db.from('pdfs').insert({ machine_id: curId, parte: parte, nome: tmpPdfNome, data: tmpPdf });
-  if(res.error){ toast('Erro ao salvar PDF'); return; }
+  var novo = { id: NankinDB.uuid(), machine_id: curId, parte: parte, nome: tmpPdfNome, data: tmpPdf, created_at: new Date().toISOString() };
+  var r = await NankinSync.write('pdfs', 'insert', novo);
+  var saved = (r.data && r.data.id) ? r.data : novo;
+  await NankinDB.put('pdfs', saved);
   closeSheet('sh-pdf');
   g('pdf-parte').value = '';
   var ul = g('pdf-ul'); ul.classList.remove('sel');
   ul.innerHTML = '<i class="ti ti-paperclip"></i> Selecionar PDF<input type="file" accept=".pdf,application/pdf" onchange="selPdf(this)">';
   tmpPdf = null; tmpPdfNome = null;
-  toast('PDF salvo!'); renderPdfs();
+  toast(r.offline ? 'PDF salvo (vai sincronizar)' : 'PDF salvo!');
+  if(r.offline) updateNetPill('queued');
+  renderPdfs();
 }
 
 async function abrirPdf(id){
-  var res = await db.from('pdfs').select('data').eq('id', id).single();
-  if(!res.data) return;
-  var b64 = res.data.data.split(',')[1];
+  var data;
+  if(navigator.onLine){
+    var res = await db.from('pdfs').select('data').eq('id', id).single();
+    data = res.data ? res.data.data : null;
+  }
+  if(!data){
+    var local = await NankinDB.getAll('pdfs');
+    var found = local.find(function(p){ return p.id === id; });
+    data = found ? found.data : null;
+  }
+  if(!data){ toast('PDF não disponível offline', 2200, true); return; }
+  var b64 = data.split(',')[1];
   var bin = atob(b64);
   var ab = new ArrayBuffer(bin.length);
   var ia = new Uint8Array(ab);
@@ -720,16 +927,29 @@ async function abrirPdf(id){
 }
 
 async function delPdf(id){
-  if(!confirm('Remover PDF?')) return;
-  await db.from('pdfs').delete().eq('id', id);
-  renderPdfs();
+  askConfirm({
+    title: 'Remover PDF?',
+    msg: 'Esse arquivo será apagado permanentemente.',
+    onConfirm: async function(){
+      var r = await NankinSync.write('pdfs', 'delete', null, id);
+      await NankinDB.remove('pdfs', id);
+      renderPdfs();
+      toast(r.offline ? 'PDF removido (vai sincronizar)' : 'PDF removido');
+      if(r.offline) updateNetPill('queued');
+    }
+  });
 }
 
 async function abrirSaida(){
   var m = machines.find(function(x){ return x.id === curId; });
   var prefix = (m && m.modelo) ? m.modelo + ' ' : '';
-  var res = await db.from('saidas').select('codigo');
-  var all = res.data || [];
+  var all;
+  if(navigator.onLine){
+    var res = await db.from('saidas').select('codigo');
+    all = res.data || [];
+  } else {
+    all = await NankinDB.getAll('saidas');
+  }
   var last = all.length ? Math.max.apply(null, all.map(function(s){ return parseInt(s.codigo.replace(/\D/g,'')) || 0; })) : 1000;
   g('s-cod').value = prefix + (last + 1);
   g('s-data').value = new Date().toISOString().split('T')[0];
@@ -740,26 +960,55 @@ async function abrirSaida(){
 async function salvarSaida(){
   var cod = g('s-cod').value.trim();
   var data = g('s-data').value;
-  if(!cod || !data){ toast('Codigo e data obrigatorios'); return; }
+  if(!cod || !data){ toast('Código e data obrigatórios', 2200, true); return; }
   var m = machines.find(function(x){ return x.id === curId; });
-  var res = await db.from('saidas').insert({ machine_id: curId, machine_nome: m.nome, machine_modelo: m.modelo, codigo: cod, data: data, dest: g('s-dest').value.trim(), obs: g('s-obs').value.trim() }).select().single();
-  if(res.error){ toast('Erro ao registrar'); return; }
-  allSaidas.unshift(res.data);
+  var nova = { id: NankinDB.uuid(), machine_id: curId, machine_nome: m.nome, machine_modelo: m.modelo, codigo: cod, data: data, dest: g('s-dest').value.trim(), obs: g('s-obs').value.trim(), created_at: new Date().toISOString() };
+  var r = await NankinSync.write('saidas', 'insert', nova);
+  var saved = (r.data && r.data.id) ? r.data : nova;
+  await NankinDB.put('saidas', saved);
+  allSaidas.unshift(saved);
   closeSheet('sh-saida');
-  toast('Saida registrada!'); renderSaidasMaq();
+  toast(r.offline ? 'Saída registrada (vai sincronizar)' : 'Saída registrada!');
+  if(r.offline) updateNetPill('queued');
+  renderSaidasMaq();
 }
 
 async function renderSaidasMaq(){
-  var res = await db.from('saidas').select('*').eq('machine_id', curId).order('created_at', { ascending: false });
-  var data = res.data || [];
+  var data;
+  if(navigator.onLine){
+    var res = await db.from('saidas').select('*').eq('machine_id', curId).order('created_at', { ascending: false });
+    data = res.data || [];
+    if(data.length) NankinDB.putMany('saidas', data);
+  } else {
+    data = await NankinDB.getByMachine('saidas', curId);
+    data.sort(function(a,b){ return (b.created_at||'').localeCompare(a.created_at||''); });
+  }
   var el = g('saidas-maq-list');
   if(!data.length){ el.innerHTML = '<div class="empty"><i class="ti ti-package"></i><div class="empty-t">Sem saidas</div><div class="empty-s">Registre quando esta maquina for concluida</div></div>'; return; }
-  el.innerHTML = data.map(function(s){ return sCard(s); }).join('');
+  el.innerHTML = '<div class="tl">' + data.map(function(s){ return tlItem(s); }).join('') + '</div>';
+}
+
+function tlItem(s){
+  var dt = s.data ? new Date(s.data + 'T12:00').toLocaleDateString('pt-BR') : '';
+  return '<div class="tl-item">' +
+    '<div class="tl-dot"></div>' +
+    '<div class="tl-card">' +
+      '<div class="tl-top"><span class="scod">' + s.codigo + '</span><span class="tl-date">' + dt + '</span></div>' +
+      (s.dest ? '<div class="tl-dest"><i class="ti ti-map-pin" style="font-size:13px;vertical-align:-2px"></i> ' + s.dest + '</div>' : '') +
+      (s.obs ? '<div class="tl-dest">' + s.obs + '</div>' : '') +
+    '</div>' +
+  '</div>';
 }
 
 async function renderSaidasGlobal(){
-  var res = await db.from('saidas').select('*').order('created_at', { ascending: false });
-  allSaidas = res.data || [];
+  if(navigator.onLine){
+    var res = await db.from('saidas').select('*').order('created_at', { ascending: false });
+    allSaidas = res.data || [];
+    if(allSaidas.length) NankinDB.putMany('saidas', allSaidas);
+  } else {
+    allSaidas = await NankinDB.getAll('saidas');
+    allSaidas.sort(function(a,b){ return (b.created_at||'').localeCompare(a.created_at||''); });
+  }
   saidasFiltradas = allSaidas.slice();
   g('saidas-stats').innerHTML = '<div class="stat-card"><div class="stat-val">' + allSaidas.length + '</div><div class="stat-lbl">Saidas totais</div></div><div class="stat-card"><div class="stat-val">' + machines.length + '</div><div class="stat-lbl">Maquinas</div></div>';
   aplicarFiltros();
@@ -822,8 +1071,13 @@ function exportarRelatorio(){
 async function renderSobre(){
   g('s-nmaq').textContent = machines.length;
   g('s-nsai').textContent = allSaidas.length;
-  var res = await db.from('pdfs').select('*', { count: 'exact', head: true });
-  g('s-npdfs').textContent = res.count || 0;
+  if(navigator.onLine){
+    var res = await db.from('pdfs').select('*', { count: 'exact', head: true });
+    g('s-npdfs').textContent = res.count || 0;
+  } else {
+    var local = await NankinDB.getAll('pdfs');
+    g('s-npdfs').textContent = local.length;
+  }
 }
 
 init();
