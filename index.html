@@ -961,6 +961,20 @@ var _pdfTotal = 1;
 var _pdfRendering = false;
 var _pdfBlobUrl = null;
 
+function carregarPdfJs(){
+  return new Promise(function(resolve, reject){
+    if(window.pdfjsLib){ resolve(); return; }
+    var s = document.createElement('script');
+    s.src = './pdf.min.js';
+    s.onload = function(){
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = './pdf.worker.min.js';
+      resolve();
+    };
+    s.onerror = reject;
+    document.head.appendChild(s);
+  });
+}
+
 async function abrirPdf(id){
   var viewer = g('pdf-viewer');
   var body = g('pdf-body');
@@ -995,14 +1009,12 @@ async function abrirPdf(id){
     return;
   }
 
-  // base64 → Blob → URL
+  // base64 → Uint8Array
   try {
     var b64 = pdfData.indexOf(',') >= 0 ? pdfData.split(',')[1] : pdfData;
     var bin = atob(b64);
     _pdfBytes = new Uint8Array(bin.length);
     for(var i = 0; i < bin.length; i++) _pdfBytes[i] = bin.charCodeAt(i);
-    var blob = new Blob([_pdfBytes], { type: 'application/pdf' });
-    _pdfBlobUrl = URL.createObjectURL(blob);
   } catch(e){
     body.innerHTML = '<div class="pdf-loading"><i class="ti ti-alert-circle" style="font-size:40px;color:#e74c3c;margin-bottom:8px"></i><span>Erro ao ler o arquivo</span></div>';
     return;
@@ -1010,37 +1022,46 @@ async function abrirPdf(id){
 
   g('pdf-viewer-title').textContent = _pdfNomeAtual;
 
-  // Detecta plataforma
-  var ua = navigator.userAgent;
-  var isIOS = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
-  var isAndroid = /Android/.test(ua);
+  // Carrega PDF.js local e renderiza com canvas
+  try {
+    await carregarPdfJs();
+    _pdfDoc = await pdfjsLib.getDocument({ data: _pdfBytes }).promise;
+    _pdfTotal = _pdfDoc.numPages;
+    _pdfPage = 1;
+    await pdfRenderizarTodas();
+  } catch(e){
+    body.innerHTML = '<div class="pdf-loading"><i class="ti ti-alert-circle" style="font-size:40px;color:#e74c3c;margin-bottom:8px"></i><span>Erro ao renderizar o PDF</span></div>';
+  }
+}
 
-  if(isIOS){
-    // iOS Safari: nem object nem embed funcionam com blob PDF
-    // Melhor UX: mostrar botão para abrir no leitor nativo
-    body.innerHTML =
-      '<div class="pdf-loading">' +
-        '<i class="ti ti-device-mobile" style="font-size:40px;color:#888;margin-bottom:12px"></i>' +
-        '<span style="text-align:center;padding:0 32px;line-height:1.7;color:#ccc">' +
-          'O iOS não permite visualizar PDFs embutidos.<br>Toque abaixo para abrir no leitor nativo.' +
-        '</span>' +
-        '<button class="btn blue" style="margin-top:20px;font-size:15px;padding:14px 28px" onclick="pdfAbrirNativo()">' +
-          '<i class="ti ti-external-link"></i> Abrir PDF' +
-        '</button>' +
-      '</div>';
-  } else if(isAndroid){
-    // Android: iframe com blob URL funciona no Chrome sem forçar download
-    body.innerHTML =
-      '<iframe src="' + _pdfBlobUrl + '" ' +
-        'style="width:100%;height:100%;border:none;display:block;background:#fff" ' +
-        'type="application/pdf">' +
-      '</iframe>';
-  } else {
-    // Desktop: embed funciona perfeitamente
-    body.innerHTML =
-      '<embed src="' + _pdfBlobUrl + '" ' +
-        'type="application/pdf" ' +
-        'style="width:100%;height:100%;display:block">';
+async function pdfRenderizarTodas(){
+  var body = g('pdf-body');
+  if(!body || !_pdfDoc) return;
+
+  body.innerHTML = '';
+  body.style.overflowY = 'auto';
+  body.style.webkitOverflowScrolling = 'touch';
+  body.style.display = 'flex';
+  body.style.flexDirection = 'column';
+  body.style.alignItems = 'center';
+  body.style.padding = '12px 8px';
+  body.style.gap = '10px';
+
+  var viewW = window.innerWidth - 16;
+
+  for(var n = 1; n <= _pdfTotal; n++){
+    var page = await _pdfDoc.getPage(n);
+    var vp0 = page.getViewport({ scale: 1 });
+    var scale = viewW / vp0.width;
+    var viewport = page.getViewport({ scale: scale });
+
+    var canvas = document.createElement('canvas');
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    canvas.style.cssText = 'display:block;max-width:100%;box-shadow:0 2px 10px rgba(0,0,0,.5);border-radius:3px;flex-shrink:0';
+    body.appendChild(canvas);
+
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport: viewport }).promise;
   }
 }
 
@@ -1052,6 +1073,7 @@ function pdfAbrirNativo(){
 function fecharPdfViewer(){
   g('pdf-viewer').classList.remove('on');
   g('pdf-body').innerHTML = '';
+  g('pdf-body').removeAttribute('style');
   _pdfDoc = null; _pdfBytes = null;
   if(_pdfBlobUrl){ URL.revokeObjectURL(_pdfBlobUrl); _pdfBlobUrl = null; }
 }
@@ -1065,8 +1087,6 @@ function pdfViewerDownload(){
   a.click();
   setTimeout(function(){ URL.revokeObjectURL(url); }, 3000);
 }
-
-async function pdfRenderizarTodas(){ /* não usada nesta versão */ }
 
 async function delPdf(id){
   askConfirm({
