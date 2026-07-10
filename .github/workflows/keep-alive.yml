@@ -1,0 +1,18 @@
+name: Supabase Keep Alive
+
+on:
+  schedule:
+    - cron: '0 10 * * 1'  # Toda segunda-feira às 10h (UTC)
+  workflow_dispatch:       # Permite rodar manualmente também
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase
+        run: |
+          curl -s \
+            -H "apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxuZ3NjbXF6ZXd3YWVsbXdobm1oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1MTIzNTYsImV4cCI6MjA5NjA4ODM1Nn0.wsym6_sslcedrFlaJEF-6M4O-2PxbqAVEIGu7qgB54A" \
+            -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxuZ3NjbXF6ZXd3YWVsbXdobm1oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1MTIzNTYsImV4cCI6MjA5NjA4ODM1Nn0.wsym6_sslcedrFlaJEF-6M4O-2PxbqAVEIGu7qgB54A" \
+            "https://lngscmqzewwaelmwhnmh.supabase.co/rest/v1/machines?select=id&limit=1" \
+            && echo "Ping OK"
