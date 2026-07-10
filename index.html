@@ -176,6 +176,19 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
 .ulabel.sel{border-color:var(--green);color:var(--green);background:var(--green-light)}
 .lb{position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:200;display:none;flex-direction:column;align-items:center;justify-content:center;overflow:hidden}
 .lb.on{display:flex}
+
+.pdf-viewer{position:fixed;inset:0;background:#1a1a1a;z-index:200;display:none;flex-direction:column}
+.pdf-viewer.on{display:flex}
+.pdf-topbar{height:52px;background:#111;display:flex;align-items:center;gap:10px;padding:0 14px;flex-shrink:0}
+.pdf-topbar-title{flex:1;font-size:13px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:var(--mono)}
+.pdf-topbar-btn{background:rgba(255,255,255,.14);border:none;color:#fff;border-radius:7px;padding:7px 12px;font-size:13px;font-family:var(--font);font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;transition:background .12s}
+.pdf-topbar-btn:active{background:rgba(255,255,255,.28)}
+.pdf-topbar-btn.close{background:rgba(192,57,43,.5)}
+.pdf-topbar-btn.close:active{background:rgba(192,57,43,.8)}
+.pdf-body{flex:1;overflow:hidden;position:relative}
+.pdf-body embed,.pdf-body iframe{width:100%;height:100%;border:none;display:block}
+.pdf-loading{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:#aaa;font-size:13px;font-family:var(--font)}
+.pdf-loading-spinner{width:32px;height:32px;border:3px solid rgba(255,255,255,.15);border-top-color:#fff;border-radius:50%;animation:spin .8s linear infinite}
 .lb img{max-width:100%;max-height:90vh;object-fit:contain;border-radius:4px;transform-origin:center center;will-change:transform;user-select:none;-webkit-user-select:none;touch-action:none}
 .lb-x{position:fixed;top:14px;right:14px;background:rgba(255,255,255,.15);border:none;color:#fff;font-size:20px;width:42px;height:42px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:202}
 .lb-hint{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);color:rgba(255,255,255,.4);font-size:11px;pointer-events:none;white-space:nowrap}
@@ -221,6 +234,20 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
   <button class="lb-x" onclick="closeLb()"><i class="ti ti-x"></i></button>
   <img id="lb-img" src="" alt="">
   <div class="lb-hint">Pinça para zoom · Duplo toque para ampliar</div>
+</div>
+
+<div class="pdf-viewer" id="pdf-viewer">
+  <div class="pdf-topbar">
+    <span class="pdf-topbar-title" id="pdf-viewer-title">Documento</span>
+    <button class="pdf-topbar-btn" id="pdf-download-btn" onclick="pdfViewerDownload()"><i class="ti ti-download"></i> Baixar</button>
+    <button class="pdf-topbar-btn close" onclick="fecharPdfViewer()"><i class="ti ti-x"></i></button>
+  </div>
+  <div class="pdf-body" id="pdf-body">
+    <div class="pdf-loading" id="pdf-loading">
+      <div class="pdf-loading-spinner"></div>
+      <span>Carregando PDF...</span>
+    </div>
+  </div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -439,6 +466,25 @@ function askConfirm(opts){
   g('confirm-ov').classList.add('on');
 }
 function fecharConfirm(){ g('confirm-ov').classList.remove('on'); }
+
+// Fecha viewers com Escape (desktop) ou back button (Android)
+document.addEventListener('keydown', function(e){
+  if(e.key === 'Escape'){
+    if(g('pdf-viewer').classList.contains('on')){ fecharPdfViewer(); return; }
+    if(g('lb').classList.contains('on')){ closeLb(); return; }
+    if(g('confirm-ov').classList.contains('on')){ fecharConfirm(); return; }
+  }
+});
+window.addEventListener('popstate', function(){
+  if(g('pdf-viewer').classList.contains('on')){ fecharPdfViewer(); history.pushState(null,'',''); return; }
+  if(g('lb').classList.contains('on')){ closeLb(); history.pushState(null,'',''); return; }
+});
+// Empurra um estado falso na pilha ao abrir overlays para capturar o back button
+var _origAbrirPdf = abrirPdf;
+// (o pushState é adicionado dentro de abrirPdf e openLb já existentes via polyfill abaixo)
+document.addEventListener('DOMContentLoaded', function(){
+  history.pushState(null, '', '');
+});
 var _z = { scale:1, max:5, tx:0, ty:0, stx:0, sty:0, sdx:0, sdy:0, ss:1, sd:0, lastTap:0 };
 
 function closeLb(){
@@ -905,25 +951,86 @@ async function salvarPdf(){
   renderPdfs();
 }
 
+var _pdfBlobUrl = null;
+
 async function abrirPdf(id){
-  var data;
-  if(navigator.onLine){
-    var res = await db.from('pdfs').select('data').eq('id', id).single();
-    data = res.data ? res.data.data : null;
+  // Abre o visualizador embutido — sem nova aba, funciona dentro do app
+  var viewer = g('pdf-viewer');
+  var body = g('pdf-body');
+  var loading = g('pdf-loading');
+
+  // Mostra o viewer com loading imediato
+  viewer.classList.add('on');
+  body.innerHTML = '<div class="pdf-loading" id="pdf-loading"><div class="pdf-loading-spinner"></div><span>Carregando PDF...</span></div>';
+
+  // Busca o PDF (online: Supabase; offline: cache local)
+  var pdfData = null;
+  var pdfNome = 'documento.pdf';
+  try {
+    if(navigator.onLine){
+      var res = await db.from('pdfs').select('data,nome').eq('id', id).single();
+      if(res.data){ pdfData = res.data.data; pdfNome = res.data.nome || pdfNome; }
+    }
+    if(!pdfData){
+      var local = await NankinDB.getAll('pdfs');
+      var found = local.find(function(p){ return p.id === id; });
+      if(found){ pdfData = found.data; pdfNome = found.nome || pdfNome; }
+    }
+  } catch(e) {}
+
+  if(!pdfData){
+    body.innerHTML = '<div class="pdf-loading"><i class="ti ti-file-x" style="font-size:40px;color:#666;margin-bottom:8px"></i><span>PDF não disponível</span></div>';
+    return;
   }
-  if(!data){
-    var local = await NankinDB.getAll('pdfs');
-    var found = local.find(function(p){ return p.id === id; });
-    data = found ? found.data : null;
-  }
-  if(!data){ toast('PDF não disponível offline', 2200, true); return; }
-  var b64 = data.split(',')[1];
+
+  // Converte base64 → Blob → URL de objeto
+  if(_pdfBlobUrl) URL.revokeObjectURL(_pdfBlobUrl);
+  var b64 = pdfData.split(',')[1];
   var bin = atob(b64);
   var ab = new ArrayBuffer(bin.length);
   var ia = new Uint8Array(ab);
   for(var i = 0; i < bin.length; i++) ia[i] = bin.charCodeAt(i);
   var blob = new Blob([ab], { type: 'application/pdf' });
-  window.open(URL.createObjectURL(blob), '_blank');
+  _pdfBlobUrl = URL.createObjectURL(blob);
+
+  // Atualiza título e botão de download
+  g('pdf-viewer-title').textContent = pdfNome;
+  g('pdf-download-btn')._blobUrl = _pdfBlobUrl;
+  g('pdf-download-btn')._nome = pdfNome;
+
+  // Detecta se embed funciona (iOS Safari não suporta embed PDF nativo)
+  var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+
+  if(isIOS){
+    // iOS: embed não funciona para PDFs em blob — usa iframe com Google Docs como fallback inline
+    // Como o PDF é local/privado (base64), não podemos mandar pro Google Docs.
+    // Melhor opção no iOS: mostrar mensagem clara e botão de abrir/baixar.
+    body.innerHTML =
+      '<div class="pdf-loading">' +
+        '<i class="ti ti-brand-apple" style="font-size:36px;color:#888;margin-bottom:8px"></i>' +
+        '<span style="text-align:center;padding:0 24px;line-height:1.6">O iOS não permite visualizar PDFs direto no app.<br>Use o botão <strong>Baixar</strong> para abrir no visualizador do iPhone.</span>' +
+        '<button class="btn blue" style="margin-top:16px" onclick="pdfViewerDownload()"><i class="ti ti-download"></i> Abrir PDF</button>' +
+      '</div>';
+  } else {
+    // Android / Desktop: embed funciona nativamente
+    body.innerHTML = '<embed src="' + _pdfBlobUrl + '" type="application/pdf" width="100%" height="100%">';
+  }
+}
+
+function fecharPdfViewer(){
+  g('pdf-viewer').classList.remove('on');
+  if(_pdfBlobUrl){ URL.revokeObjectURL(_pdfBlobUrl); _pdfBlobUrl = null; }
+  g('pdf-body').innerHTML = '';
+}
+
+function pdfViewerDownload(){
+  var btn = g('pdf-download-btn');
+  var url = btn._blobUrl || _pdfBlobUrl;
+  var nome = btn._nome || 'documento.pdf';
+  if(!url) return;
+  var a = document.createElement('a');
+  a.href = url; a.download = nome;
+  a.click();
 }
 
 async function delPdf(id){
