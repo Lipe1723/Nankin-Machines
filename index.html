@@ -177,7 +177,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
 .lb{position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:200;display:none;flex-direction:column;align-items:center;justify-content:center;overflow:hidden}
 .lb.on{display:flex}
 
-.pdf-viewer{position:fixed;inset:0;background:#1a1a1a;z-index:200;display:none;flex-direction:column}
+.pdf-viewer{position:fixed;inset:0;background:#1a1a1a;z-index:200;display:none;flex-direction:column;height:100%;height:100dvh}
 .pdf-viewer.on{display:flex}
 .pdf-topbar{height:52px;background:#111;display:flex;align-items:center;gap:10px;padding:0 14px;flex-shrink:0}
 .pdf-topbar-title{flex:1;font-size:13px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:var(--mono)}
@@ -185,9 +185,9 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
 .pdf-topbar-btn:active{background:rgba(255,255,255,.28)}
 .pdf-topbar-btn.close{background:rgba(192,57,43,.5)}
 .pdf-topbar-btn.close:active{background:rgba(192,57,43,.8)}
-.pdf-body{flex:1;overflow:hidden;position:relative;min-height:0}
-.pdf-body embed,.pdf-body iframe{width:100%;height:100%;border:none;display:block}
-.pdf-loading{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:#aaa;font-size:13px;font-family:var(--font)}
+.pdf-body{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;position:relative;background:#404040;display:flex;flex-direction:column;align-items:center;padding:12px 0;gap:10px}
+.pdf-body canvas{display:block;box-shadow:0 2px 12px rgba(0,0,0,.5);border-radius:4px;max-width:calc(100vw - 16px)}
+.pdf-loading{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:#aaa;font-size:13px;font-family:var(--font);min-height:200px;width:100%}
 .pdf-loading-spinner{width:32px;height:32px;border:3px solid rgba(255,255,255,.15);border-top-color:#fff;border-radius:50%;animation:spin .8s linear infinite}
 .lb img{max-width:100%;max-height:90vh;object-fit:contain;border-radius:4px;transform-origin:center center;will-change:transform;user-select:none;-webkit-user-select:none;touch-action:none}
 .lb-x{position:fixed;top:14px;right:14px;background:rgba(255,255,255,.15);border:none;color:#fff;font-size:20px;width:42px;height:42px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:202}
@@ -977,7 +977,8 @@ async function abrirPdf(id){
   var viewer = g('pdf-viewer');
   var body = g('pdf-body');
 
-  // Mostra viewer com loading
+  // Limpa e mostra loading direto no body (sem wrap intermediário)
+  _pdfDoc = null; _pdfBytes = null;
   viewer.classList.add('on');
   body.innerHTML =
     '<div class="pdf-loading">' +
@@ -985,7 +986,7 @@ async function abrirPdf(id){
       '<span>Carregando PDF...</span>' +
     '</div>';
 
-  // Busca dados do PDF
+  // Busca dados
   var pdfData = null;
   _pdfNomeAtual = 'documento.pdf';
   try {
@@ -1001,31 +1002,26 @@ async function abrirPdf(id){
   } catch(e){}
 
   if(!pdfData){
-    body.innerHTML = '<div class="pdf-loading"><i class="ti ti-file-x" style="font-size:40px;color:#666;margin-bottom:8px"></i><span>PDF não disponível</span></div>';
+    body.innerHTML = '<div class="pdf-loading"><i class="ti ti-file-x" style="font-size:40px;color:#e74c3c;margin-bottom:8px"></i><span>PDF não disponível</span></div>';
     return;
   }
 
-  // Converte base64 → Uint8Array
-  var b64 = pdfData.split(',')[1];
-  var bin = atob(b64);
-  _pdfBytes = new Uint8Array(bin.length);
-  for(var i = 0; i < bin.length; i++) _pdfBytes[i] = bin.charCodeAt(i);
+  // base64 → Uint8Array
+  try {
+    var b64 = pdfData.split(',')[1] || pdfData;
+    var bin = atob(b64);
+    _pdfBytes = new Uint8Array(bin.length);
+    for(var i = 0; i < bin.length; i++) _pdfBytes[i] = bin.charCodeAt(i);
+  } catch(e){
+    body.innerHTML = '<div class="pdf-loading"><i class="ti ti-alert-circle" style="font-size:40px;color:#e74c3c;margin-bottom:8px"></i><span>Erro ao ler o arquivo</span></div>';
+    return;
+  }
 
-  // Atualiza título
   g('pdf-viewer-title').textContent = _pdfNomeAtual;
 
-  // Monta o container de canvas
-  body.innerHTML =
-    '<div id="pdf-canvas-wrap" style="overflow-y:auto;height:100%;background:#404040;display:flex;flex-direction:column;align-items:center;padding:12px 0;gap:12px">' +
-    '</div>' +
-    '<div id="pdf-nav" style="position:absolute;bottom:0;left:0;right:0;height:48px;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;gap:16px">' +
-      '<button class="pdf-topbar-btn" onclick="pdfIrPagina(_pdfPage-1)"><i class="ti ti-chevron-left"></i></button>' +
-      '<span id="pdf-pg-info" style="color:#fff;font-size:13px;font-family:var(--mono);min-width:80px;text-align:center">–</span>' +
-      '<button class="pdf-topbar-btn" onclick="pdfIrPagina(_pdfPage+1)"><i class="ti ti-chevron-right"></i></button>' +
-    '</div>';
-
-  // Carrega PDF.js e renderiza
+  // Carrega PDF.js (lazy, da CDN — fica em cache do SW após primeira vez)
   await carregarPdfJs();
+
   try {
     _pdfDoc = await pdfjsLib.getDocument({ data: _pdfBytes }).promise;
     _pdfTotal = _pdfDoc.numPages;
@@ -1037,32 +1033,26 @@ async function abrirPdf(id){
 }
 
 async function pdfRenderizarTodas(){
-  var wrap = g('pdf-canvas-wrap');
-  if(!wrap || !_pdfDoc) return;
-  wrap.innerHTML = '';
-  var containerW = wrap.clientWidth - 24;
+  var body = g('pdf-body');
+  if(!body || !_pdfDoc) return;
+
+  // Limpa e renderiza página por página diretamente no body
+  body.innerHTML = '';
+  var viewW = Math.min(body.clientWidth || window.innerWidth, window.innerWidth) - 16;
+
   for(var n = 1; n <= _pdfTotal; n++){
     var page = await _pdfDoc.getPage(n);
-    var vp = page.getViewport({ scale: 1 });
-    var scale = containerW / vp.width;
+    var vp0 = page.getViewport({ scale: 1 });
+    var scale = viewW / vp0.width;
     var viewport = page.getViewport({ scale: scale });
+
     var canvas = document.createElement('canvas');
     canvas.width = viewport.width;
     canvas.height = viewport.height;
-    canvas.style.cssText = 'display:block;box-shadow:0 2px 12px rgba(0,0,0,.5);border-radius:4px;max-width:100%';
-    wrap.appendChild(canvas);
+    body.appendChild(canvas);
+
     await page.render({ canvasContext: canvas.getContext('2d'), viewport: viewport }).promise;
   }
-  g('pdf-pg-info').textContent = _pdfTotal + ' página' + (_pdfTotal !== 1 ? 's' : '');
-  g('pdf-nav').style.display = _pdfTotal > 1 ? 'none' : 'none'; // nav escondido no modo scroll
-}
-
-function pdfIrPagina(n){
-  // Scroll para a página desejada no modo todas-páginas
-  if(!_pdfDoc) return;
-  n = Math.max(1, Math.min(_pdfTotal, n));
-  var canvases = document.querySelectorAll('#pdf-canvas-wrap canvas');
-  if(canvases[n-1]) canvases[n-1].scrollIntoView({ behavior: 'smooth' });
 }
 
 function fecharPdfViewer(){
