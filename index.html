@@ -185,7 +185,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
 .pdf-topbar-btn:active{background:rgba(255,255,255,.28)}
 .pdf-topbar-btn.close{background:rgba(192,57,43,.5)}
 .pdf-topbar-btn.close:active{background:rgba(192,57,43,.8)}
-.pdf-body{flex:1;overflow:hidden;position:relative}
+.pdf-body{flex:1;overflow:hidden;position:relative;min-height:0}
 .pdf-body embed,.pdf-body iframe{width:100%;height:100%;border:none;display:block}
 .pdf-loading{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:#aaa;font-size:13px;font-family:var(--font)}
 .pdf-loading-spinner{width:32px;height:32px;border:3px solid rgba(255,255,255,.15);border-top-color:#fff;border-radius:50%;animation:spin .8s linear infinite}
@@ -951,86 +951,134 @@ async function salvarPdf(){
   renderPdfs();
 }
 
-var _pdfBlobUrl = null;
+var _pdfBytes = null;
+var _pdfNomeAtual = 'documento.pdf';
+var _pdfDoc = null;
+var _pdfPage = 1;
+var _pdfTotal = 1;
+var _pdfRendering = false;
+
+// Carrega PDF.js da CDN quando necessário (lazy load)
+function carregarPdfJs(){
+  return new Promise(function(resolve){
+    if(window.pdfjsLib){ resolve(); return; }
+    var s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js';
+    s.onload = function(){
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+        'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+      resolve();
+    };
+    document.head.appendChild(s);
+  });
+}
 
 async function abrirPdf(id){
-  // Abre o visualizador embutido — sem nova aba, funciona dentro do app
   var viewer = g('pdf-viewer');
   var body = g('pdf-body');
-  var loading = g('pdf-loading');
 
-  // Mostra o viewer com loading imediato
+  // Mostra viewer com loading
   viewer.classList.add('on');
-  body.innerHTML = '<div class="pdf-loading" id="pdf-loading"><div class="pdf-loading-spinner"></div><span>Carregando PDF...</span></div>';
+  body.innerHTML =
+    '<div class="pdf-loading">' +
+      '<div class="pdf-loading-spinner"></div>' +
+      '<span>Carregando PDF...</span>' +
+    '</div>';
 
-  // Busca o PDF (online: Supabase; offline: cache local)
+  // Busca dados do PDF
   var pdfData = null;
-  var pdfNome = 'documento.pdf';
+  _pdfNomeAtual = 'documento.pdf';
   try {
     if(navigator.onLine){
       var res = await db.from('pdfs').select('data,nome').eq('id', id).single();
-      if(res.data){ pdfData = res.data.data; pdfNome = res.data.nome || pdfNome; }
+      if(res.data){ pdfData = res.data.data; _pdfNomeAtual = res.data.nome || _pdfNomeAtual; }
     }
     if(!pdfData){
       var local = await NankinDB.getAll('pdfs');
       var found = local.find(function(p){ return p.id === id; });
-      if(found){ pdfData = found.data; pdfNome = found.nome || pdfNome; }
+      if(found){ pdfData = found.data; _pdfNomeAtual = found.nome || _pdfNomeAtual; }
     }
-  } catch(e) {}
+  } catch(e){}
 
   if(!pdfData){
     body.innerHTML = '<div class="pdf-loading"><i class="ti ti-file-x" style="font-size:40px;color:#666;margin-bottom:8px"></i><span>PDF não disponível</span></div>';
     return;
   }
 
-  // Converte base64 → Blob → URL de objeto
-  if(_pdfBlobUrl) URL.revokeObjectURL(_pdfBlobUrl);
+  // Converte base64 → Uint8Array
   var b64 = pdfData.split(',')[1];
   var bin = atob(b64);
-  var ab = new ArrayBuffer(bin.length);
-  var ia = new Uint8Array(ab);
-  for(var i = 0; i < bin.length; i++) ia[i] = bin.charCodeAt(i);
-  var blob = new Blob([ab], { type: 'application/pdf' });
-  _pdfBlobUrl = URL.createObjectURL(blob);
+  _pdfBytes = new Uint8Array(bin.length);
+  for(var i = 0; i < bin.length; i++) _pdfBytes[i] = bin.charCodeAt(i);
 
-  // Atualiza título e botão de download
-  g('pdf-viewer-title').textContent = pdfNome;
-  g('pdf-download-btn')._blobUrl = _pdfBlobUrl;
-  g('pdf-download-btn')._nome = pdfNome;
+  // Atualiza título
+  g('pdf-viewer-title').textContent = _pdfNomeAtual;
 
-  // Detecta se embed funciona (iOS Safari não suporta embed PDF nativo)
-  var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  // Monta o container de canvas
+  body.innerHTML =
+    '<div id="pdf-canvas-wrap" style="overflow-y:auto;height:100%;background:#404040;display:flex;flex-direction:column;align-items:center;padding:12px 0;gap:12px">' +
+    '</div>' +
+    '<div id="pdf-nav" style="position:absolute;bottom:0;left:0;right:0;height:48px;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;gap:16px">' +
+      '<button class="pdf-topbar-btn" onclick="pdfIrPagina(_pdfPage-1)"><i class="ti ti-chevron-left"></i></button>' +
+      '<span id="pdf-pg-info" style="color:#fff;font-size:13px;font-family:var(--mono);min-width:80px;text-align:center">–</span>' +
+      '<button class="pdf-topbar-btn" onclick="pdfIrPagina(_pdfPage+1)"><i class="ti ti-chevron-right"></i></button>' +
+    '</div>';
 
-  if(isIOS){
-    // iOS: embed não funciona para PDFs em blob — usa iframe com Google Docs como fallback inline
-    // Como o PDF é local/privado (base64), não podemos mandar pro Google Docs.
-    // Melhor opção no iOS: mostrar mensagem clara e botão de abrir/baixar.
-    body.innerHTML =
-      '<div class="pdf-loading">' +
-        '<i class="ti ti-brand-apple" style="font-size:36px;color:#888;margin-bottom:8px"></i>' +
-        '<span style="text-align:center;padding:0 24px;line-height:1.6">O iOS não permite visualizar PDFs direto no app.<br>Use o botão <strong>Baixar</strong> para abrir no visualizador do iPhone.</span>' +
-        '<button class="btn blue" style="margin-top:16px" onclick="pdfViewerDownload()"><i class="ti ti-download"></i> Abrir PDF</button>' +
-      '</div>';
-  } else {
-    // Android / Desktop: embed funciona nativamente
-    body.innerHTML = '<embed src="' + _pdfBlobUrl + '" type="application/pdf" width="100%" height="100%">';
+  // Carrega PDF.js e renderiza
+  await carregarPdfJs();
+  try {
+    _pdfDoc = await pdfjsLib.getDocument({ data: _pdfBytes }).promise;
+    _pdfTotal = _pdfDoc.numPages;
+    _pdfPage = 1;
+    await pdfRenderizarTodas();
+  } catch(e){
+    body.innerHTML = '<div class="pdf-loading"><i class="ti ti-alert-circle" style="font-size:40px;color:#e74c3c;margin-bottom:8px"></i><span>Erro ao renderizar o PDF</span></div>';
   }
+}
+
+async function pdfRenderizarTodas(){
+  var wrap = g('pdf-canvas-wrap');
+  if(!wrap || !_pdfDoc) return;
+  wrap.innerHTML = '';
+  var containerW = wrap.clientWidth - 24;
+  for(var n = 1; n <= _pdfTotal; n++){
+    var page = await _pdfDoc.getPage(n);
+    var vp = page.getViewport({ scale: 1 });
+    var scale = containerW / vp.width;
+    var viewport = page.getViewport({ scale: scale });
+    var canvas = document.createElement('canvas');
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    canvas.style.cssText = 'display:block;box-shadow:0 2px 12px rgba(0,0,0,.5);border-radius:4px;max-width:100%';
+    wrap.appendChild(canvas);
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport: viewport }).promise;
+  }
+  g('pdf-pg-info').textContent = _pdfTotal + ' página' + (_pdfTotal !== 1 ? 's' : '');
+  g('pdf-nav').style.display = _pdfTotal > 1 ? 'none' : 'none'; // nav escondido no modo scroll
+}
+
+function pdfIrPagina(n){
+  // Scroll para a página desejada no modo todas-páginas
+  if(!_pdfDoc) return;
+  n = Math.max(1, Math.min(_pdfTotal, n));
+  var canvases = document.querySelectorAll('#pdf-canvas-wrap canvas');
+  if(canvases[n-1]) canvases[n-1].scrollIntoView({ behavior: 'smooth' });
 }
 
 function fecharPdfViewer(){
   g('pdf-viewer').classList.remove('on');
-  if(_pdfBlobUrl){ URL.revokeObjectURL(_pdfBlobUrl); _pdfBlobUrl = null; }
   g('pdf-body').innerHTML = '';
+  _pdfDoc = null; _pdfBytes = null;
 }
 
 function pdfViewerDownload(){
-  var btn = g('pdf-download-btn');
-  var url = btn._blobUrl || _pdfBlobUrl;
-  var nome = btn._nome || 'documento.pdf';
-  if(!url) return;
+  if(!_pdfBytes) return;
+  var blob = new Blob([_pdfBytes], { type: 'application/pdf' });
+  var url = URL.createObjectURL(blob);
   var a = document.createElement('a');
-  a.href = url; a.download = nome;
+  a.href = url; a.download = _pdfNomeAtual;
   a.click();
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 3000);
 }
 
 async function delPdf(id){
