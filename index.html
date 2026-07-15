@@ -674,7 +674,7 @@ function renderMaquinas(){
   list.forEach(function(m){
     if(navigator.onLine){
       Promise.all([
-        db.from('fotos').select('id,data').eq('machine_id', m.id).limit(m.capa_foto_id ? 50 : 1),
+        db.from('fotos').select('id,url').eq('machine_id', m.id).limit(m.capa_foto_id ? 50 : 1),
         db.from('pecas').select('id').eq('machine_id', m.id),
         db.from('pdfs').select('id').eq('machine_id', m.id)
       ]).then(function(results){
@@ -696,12 +696,14 @@ function renderMaquinas(){
 function pintarCardMaquina(id, fotos, pecas, pdfs){
   var th = g('thumb-' + id);
   if(th && fotos && fotos.length){
-    // Prefere a foto marcada como capa
     var maq = machines.find(function(m){ return m.id === id; });
     var capaId = maq ? maq.capa_foto_id : null;
     var capa = capaId ? fotos.find(function(f){ return f.id === capaId; }) : null;
     var fotoExibir = capa || fotos[0];
-    if(fotoExibir) th.innerHTML = '<img src="' + fotoExibir.data + '" alt="">';
+    if(fotoExibir){
+      var src = fotoExibir.url || fotoExibir.data || '';
+      th.innerHTML = '<img src="' + src + '" alt="">';
+    }
   }
   var tg = g('tags-' + id);
   if(tg){
@@ -763,87 +765,37 @@ async function renderFotos(){
   var data = [];
   try {
     if(navigator.onLine){
-      // Busca IDs primeiro (leve), depois cada foto individualmente para evitar timeout
-      var resIds = await db.from('fotos').select('id,created_at').eq('machine_id', curId).order('created_at');
-      if(resIds.error) throw resIds.error;
-      var ids = (resIds.data || []).map(function(r){ return r.id; });
-      // Mostra grid vazio com placeholders enquanto carrega
-      var maq = machines.find(function(m){ return m.id === curId; });
-      var capaId = maq ? maq.capa_foto_id : null;
-      grid.innerHTML = ids.map(function(id){
-        return '<div class="fcell" id="fcell-' + id + '" style="background:var(--green-light)">' +
-          '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center"><div class="pdf-loading-spinner" style="width:20px;height:20px;border-width:2px"></div></div>' +
-        '</div>';
-      }).join('') + '<label class="fadd"><input type="file" accept="image/*" multiple onchange="addFotos(this)"><i class="ti ti-plus"></i><span>Foto</span></label>';
-      window._currentFotos = [];
-      // Carrega cada foto individualmente
-      for(var i = 0; i < ids.length; i++){
-        var fotoId = ids[i];
-        try {
-          var resFoto = await db.from('fotos').select('*').eq('id', fotoId).single();
-          if(resFoto.data){
-            var f = resFoto.data;
-            window._currentFotos.push(f);
-            NankinDB.put('fotos', f);
-            var ehCapa = f.id === capaId;
-            var cell = g('fcell-' + f.id);
-            if(cell){
-              cell.innerHTML =
-                '<img src="' + f.data + '" onclick="openLb(\'' + f.id + '\')">' +
-                '<button class="fdel" onclick="delFoto(\'' + f.id + '\',event)"><i class="ti ti-x"></i></button>' +
-                (ehCapa
-                  ? '<div class="fcapa-badge"><i class="ti ti-star-filled" style="font-size:10px"></i> CAPA</div>'
-                  : '<button class="fcapa-btn" onclick="definirCapa(\'' + f.id + '\',event)"><i class="ti ti-star" style="font-size:11px"></i> Capa</button>'
-                );
-            }
-          }
-        } catch(e2){}
-      }
-      if(ids.length === 0){
-        grid.innerHTML = '<label class="fadd"><input type="file" accept="image/*" multiple onchange="addFotos(this)"><i class="ti ti-plus"></i><span>Foto</span></label>';
-      }
+      // Busca só id, url, created_at — sem o campo data (base64 enorme)
+      var res = await db.from('fotos').select('id,url,machine_id,created_at').eq('machine_id', curId).order('created_at');
+      if(res.error) throw res.error;
+      data = res.data || [];
     } else {
-      data = await NankinDB.getByMachine('fotos', curId);
-      data.sort(function(a,b){ return (a.created_at||'').localeCompare(b.created_at||''); });
-      var maq = machines.find(function(m){ return m.id === curId; });
-      var capaId = maq ? maq.capa_foto_id : null;
-      grid.innerHTML = data.map(function(f){
-        var ehCapa = f.id === capaId;
-        return '<div class="fcell">' +
-          '<img src="' + f.data + '" onclick="openLb(\'' + f.id + '\')">' +
-          '<button class="fdel" onclick="delFoto(\'' + f.id + '\',event)"><i class="ti ti-x"></i></button>' +
-          (ehCapa
-            ? '<div class="fcapa-badge"><i class="ti ti-star-filled" style="font-size:10px"></i> CAPA</div>'
-            : '<button class="fcapa-btn" onclick="definirCapa(\'' + f.id + '\',event)"><i class="ti ti-star" style="font-size:11px"></i> Capa</button>'
-          ) +
-        '</div>';
-      }).join('') + '<label class="fadd"><input type="file" accept="image/*" multiple onchange="addFotos(this)"><i class="ti ti-plus"></i><span>Foto</span></label>';
-      window._currentFotos = data;
+      var local = await NankinDB.getByMachine('fotos', curId);
+      local.sort(function(a,b){ return (a.created_at||'').localeCompare(b.created_at||''); });
+      data = local;
     }
   } catch(e){
-    console.log('[renderFotos] erro:', e);
-    // Fallback: tenta cache local
     try {
-      data = await NankinDB.getByMachine('fotos', curId);
-      data.sort(function(a,b){ return (a.created_at||'').localeCompare(b.created_at||''); });
-      var maq2 = machines.find(function(m){ return m.id === curId; });
-      var capaId2 = maq2 ? maq2.capa_foto_id : null;
-      grid.innerHTML = data.map(function(f){
-        var ehCapa = f.id === capaId2;
-        return '<div class="fcell">' +
-          '<img src="' + f.data + '" onclick="openLb(\'' + f.id + '\')">' +
-          '<button class="fdel" onclick="delFoto(\'' + f.id + '\',event)"><i class="ti ti-x"></i></button>' +
-          (ehCapa
-            ? '<div class="fcapa-badge"><i class="ti ti-star-filled" style="font-size:10px"></i> CAPA</div>'
-            : '<button class="fcapa-btn" onclick="definirCapa(\'' + f.id + '\',event)"><i class="ti ti-star" style="font-size:11px"></i> Capa</button>'
-          ) +
-        '</div>';
-      }).join('') + '<label class="fadd"><input type="file" accept="image/*" multiple onchange="addFotos(this)"><i class="ti ti-plus"></i><span>Foto</span></label>';
-      window._currentFotos = data;
-    } catch(e2){
-      grid.innerHTML = '<div class="empty"><i class="ti ti-photo-off"></i><div class="empty-t">Erro ao carregar fotos</div><div class="empty-s">Tente novamente</div></div><label class="fadd"><input type="file" accept="image/*" multiple onchange="addFotos(this)"><i class="ti ti-plus"></i><span>Foto</span></label>';
-    }
+      var local2 = await NankinDB.getByMachine('fotos', curId);
+      local2.sort(function(a,b){ return (a.created_at||'').localeCompare(b.created_at||''); });
+      data = local2;
+    } catch(e2){ data = []; }
   }
+  var maq = machines.find(function(m){ return m.id === curId; });
+  var capaId = maq ? maq.capa_foto_id : null;
+  grid.innerHTML = data.map(function(f){
+    var ehCapa = f.id === capaId;
+    var src = f.url || f.data || '';
+    return '<div class="fcell">' +
+      '<img src="' + src + '" onclick="openLb(\'' + f.id + '\')">' +
+      '<button class="fdel" onclick="delFoto(\'' + f.id + '\',event)"><i class="ti ti-x"></i></button>' +
+      (ehCapa
+        ? '<div class="fcapa-badge"><i class="ti ti-star-filled" style="font-size:10px"></i> CAPA</div>'
+        : '<button class="fcapa-btn" onclick="definirCapa(\'' + f.id + '\',event)"><i class="ti ti-star" style="font-size:11px"></i> Capa</button>'
+      ) +
+    '</div>';
+  }).join('') + '<label class="fadd"><input type="file" accept="image/*" multiple onchange="addFotos(this)"><i class="ti ti-plus"></i><span>Foto</span></label>';
+  window._currentFotos = data;
 }
 
 async function definirCapa(fotoId, e){
@@ -869,29 +821,52 @@ function openLb(fotoId){
   _z.scale=1; _z.tx=0; _z.ty=0;
   var img=g('lb-img');
   img.style.transform='';
-  img.src=foto.data;
+  img.src = foto.url || foto.data || '';
   g('lb').classList.add('on');
   initLbZoom();
 }
 
 async function addFotos(input){
   toast('Enviando fotos...');
+  var SUPABASE_URL = 'https://lngscmqzewwaelmwhnmh.supabase.co';
+  var KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxuZ3NjbXF6ZXd3YWVsbXdobm1oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA1MTIzNTYsImV4cCI6MjA5NjA4ODM1Nn0.wsym6_sslcedrFlaJEF-6M4O-2PxbqAVEIGu7qgB54A';
   var files = Array.from(input.files);
   var algumOffline = false;
   for(var i = 0; i < files.length; i++){
-    await new Promise(function(resolve){
-      var f = files[i];
-      var r = new FileReader();
-      r.onload = async function(e){
-        var nova = { id: NankinDB.uuid(), machine_id: curId, data: e.target.result, created_at: new Date().toISOString() };
-        var res = await NankinSync.write('fotos', 'insert', nova);
-        if(res.offline) algumOffline = true;
-        var saved = (res.data && res.data.id) ? res.data : nova;
-        await NankinDB.put('fotos', saved);
-        resolve();
-      };
-      r.readAsDataURL(f);
-    });
+    var f = files[i];
+    var id = NankinDB.uuid();
+    var ext = f.type === 'image/png' ? '.png' : '.jpg';
+    var path = id + ext;
+    var nova = { id: id, machine_id: curId, created_at: new Date().toISOString() };
+    if(navigator.onLine){
+      try {
+        // Upload para Storage
+        var up = await fetch(SUPABASE_URL + '/storage/v1/object/fotos/' + path, {
+          method: 'POST',
+          headers: { apikey: KEY, Authorization: 'Bearer ' + KEY, 'Content-Type': f.type },
+          body: f
+        });
+        if(up.ok){
+          nova.url = SUPABASE_URL + '/storage/v1/object/public/fotos/' + path;
+          // Insere registro no banco com url (sem data)
+          await db.from('fotos').insert({ id: id, machine_id: curId, url: nova.url, created_at: nova.created_at });
+        } else {
+          throw new Error('Upload falhou');
+        }
+      } catch(e){
+        // Fallback offline: salva base64 local
+        nova.data = await new Promise(function(res){ var r = new FileReader(); r.onload = function(e){ res(e.target.result); }; r.readAsDataURL(f); });
+        await NankinDB.queueAdd({ store: 'fotos', op: 'insert', payload: nova });
+        algumOffline = true;
+      }
+    } else {
+      // Offline: salva base64 local para sincronizar depois
+      nova.data = await new Promise(function(res){ var r = new FileReader(); r.onload = function(e){ res(e.target.result); }; r.readAsDataURL(f); });
+      await NankinDB.put('fotos', nova);
+      await NankinDB.queueAdd({ store: 'fotos', op: 'insert', payload: nova });
+      algumOffline = true;
+    }
+    await NankinDB.put('fotos', nova);
   }
   toast(algumOffline ? 'Fotos salvas (vão sincronizar)' : 'Fotos salvas!');
   if(algumOffline) updateNetPill('queued');
