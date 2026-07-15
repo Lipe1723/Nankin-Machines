@@ -92,6 +92,10 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
 .fcell{aspect-ratio:1;border-radius:8px;overflow:hidden;border:0.5px solid var(--border);position:relative}
 .fcell img{width:100%;height:100%;object-fit:cover;cursor:pointer}
 .fdel{position:absolute;top:4px;right:4px;background:rgba(0,0,0,.55);border:none;color:#fff;border-radius:50%;width:26px;height:26px;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.fcapa-btn{position:absolute;bottom:4px;left:4px;background:rgba(0,0,0,.55);border:none;color:#fff;border-radius:20px;padding:3px 8px;font-size:11px;font-weight:600;font-family:var(--font);cursor:pointer;display:flex;align-items:center;gap:4px;transition:background .12s}
+.fcapa-btn:active{background:rgba(0,0,0,.8)}
+.fcapa-btn.ativa{background:rgba(30,125,62,.85);color:#fff}
+.fcapa-badge{position:absolute;top:4px;left:4px;background:var(--green);color:#fff;border-radius:20px;padding:2px 8px;font-size:10px;font-weight:700;font-family:var(--font);letter-spacing:.3px}
 .fadd{aspect-ratio:1;border-radius:8px;border:1.5px dashed var(--border);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:var(--muted);cursor:pointer;position:relative;background:var(--surface)}
 .fadd:active{background:var(--green-light)}
 .fadd input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
@@ -670,7 +674,7 @@ function renderMaquinas(){
   list.forEach(function(m){
     if(navigator.onLine){
       Promise.all([
-        db.from('fotos').select('id,data').eq('machine_id', m.id).limit(1),
+        db.from('fotos').select('id,data').eq('machine_id', m.id).limit(m.capa_foto_id ? 50 : 1),
         db.from('pecas').select('id').eq('machine_id', m.id),
         db.from('pdfs').select('id').eq('machine_id', m.id)
       ]).then(function(results){
@@ -683,7 +687,7 @@ function renderMaquinas(){
         NankinDB.getByMachine('pecas', m.id),
         NankinDB.getByMachine('pdfs', m.id)
       ]).then(function(results){
-        pintarCardMaquina(m.id, results[0].slice(0,1), results[1], results[2]);
+        pintarCardMaquina(m.id, results[0], results[1], results[2]);
       });
     }
   });
@@ -691,7 +695,14 @@ function renderMaquinas(){
 
 function pintarCardMaquina(id, fotos, pecas, pdfs){
   var th = g('thumb-' + id);
-  if(th && fotos && fotos.length) th.innerHTML = '<img src="' + fotos[0].data + '" alt="">';
+  if(th && fotos && fotos.length){
+    // Prefere a foto marcada como capa
+    var maq = machines.find(function(m){ return m.id === id; });
+    var capaId = maq ? maq.capa_foto_id : null;
+    var capa = capaId ? fotos.find(function(f){ return f.id === capaId; }) : null;
+    var fotoExibir = capa || fotos[0];
+    if(fotoExibir) th.innerHTML = '<img src="' + fotoExibir.data + '" alt="">';
+  }
   var tg = g('tags-' + id);
   if(tg){
     var tags = [];
@@ -757,10 +768,38 @@ async function renderFotos(){
     data.sort(function(a,b){ return (a.created_at||'').localeCompare(b.created_at||''); });
   }
   var grid = g('foto-grid');
-  grid.innerHTML = data.map(function(f, i){
-    return '<div class="fcell"><img src="' + f.data + '" onclick="openLb(\'' + f.id + '\')"><button class="fdel" onclick="delFoto(\'' + f.id + '\',event)"><i class="ti ti-x"></i></button></div>';
+  // Pega capa atual da máquina
+  var maq = machines.find(function(m){ return m.id === curId; });
+  var capaId = maq ? maq.capa_foto_id : null;
+  grid.innerHTML = data.map(function(f){
+    var ehCapa = f.id === capaId;
+    return '<div class="fcell">' +
+      '<img src="' + f.data + '" onclick="openLb(\'' + f.id + '\')">' +
+      '<button class="fdel" onclick="delFoto(\'' + f.id + '\',event)"><i class="ti ti-x"></i></button>' +
+      (ehCapa
+        ? '<div class="fcapa-badge"><i class="ti ti-star-filled" style="font-size:10px"></i> CAPA</div>'
+        : '<button class="fcapa-btn" onclick="definirCapa(\'' + f.id + '\',event)"><i class="ti ti-star" style="font-size:11px"></i> Capa</button>'
+      ) +
+    '</div>';
   }).join('') + '<label class="fadd"><input type="file" accept="image/*" multiple onchange="addFotos(this)"><i class="ti ti-plus"></i><span>Foto</span></label>';
   window._currentFotos = data;
+}
+
+async function definirCapa(fotoId, e){
+  e.stopPropagation();
+  var maq = machines.find(function(m){ return m.id === curId; });
+  if(!maq) return;
+  // Atualiza local
+  maq.capa_foto_id = fotoId;
+  await NankinDB.put('machines', maq);
+  // Sincroniza com Supabase
+  var r = await NankinSync.write('machines', 'update', { capa_foto_id: fotoId }, curId);
+  toast(r.offline ? 'Capa definida (vai sincronizar)' : 'Foto de capa definida!');
+  if(r.offline) updateNetPill('queued');
+  // Atualiza thumbnail no card da listagem
+  var foto = (window._currentFotos || []).find(function(f){ return f.id === fotoId; });
+  if(foto) pintarCardMaquina(curId, [foto], [], []);
+  renderFotos();
 }
 
 function openLb(fotoId){
