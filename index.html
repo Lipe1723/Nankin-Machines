@@ -758,31 +758,92 @@ function itab(tab, btn){
 }
 
 async function renderFotos(){
-  var data;
-  if(navigator.onLine){
-    var res = await db.from('fotos').select('*').eq('machine_id', curId).order('created_at');
-    data = res.data || [];
-    if(data.length) NankinDB.putMany('fotos', data);
-  } else {
-    data = await NankinDB.getByMachine('fotos', curId);
-    data.sort(function(a,b){ return (a.created_at||'').localeCompare(b.created_at||''); });
-  }
   var grid = g('foto-grid');
-  // Pega capa atual da máquina
-  var maq = machines.find(function(m){ return m.id === curId; });
-  var capaId = maq ? maq.capa_foto_id : null;
-  grid.innerHTML = data.map(function(f){
-    var ehCapa = f.id === capaId;
-    return '<div class="fcell">' +
-      '<img src="' + f.data + '" onclick="openLb(\'' + f.id + '\')">' +
-      '<button class="fdel" onclick="delFoto(\'' + f.id + '\',event)"><i class="ti ti-x"></i></button>' +
-      (ehCapa
-        ? '<div class="fcapa-badge"><i class="ti ti-star-filled" style="font-size:10px"></i> CAPA</div>'
-        : '<button class="fcapa-btn" onclick="definirCapa(\'' + f.id + '\',event)"><i class="ti ti-star" style="font-size:11px"></i> Capa</button>'
-      ) +
-    '</div>';
-  }).join('') + '<label class="fadd"><input type="file" accept="image/*" multiple onchange="addFotos(this)"><i class="ti ti-plus"></i><span>Foto</span></label>';
-  window._currentFotos = data;
+  grid.innerHTML = '<div class="pdf-loading"><div class="pdf-loading-spinner"></div><span>Carregando fotos...</span></div>';
+  var data = [];
+  try {
+    if(navigator.onLine){
+      // Busca IDs primeiro (leve), depois cada foto individualmente para evitar timeout
+      var resIds = await db.from('fotos').select('id,created_at').eq('machine_id', curId).order('created_at');
+      if(resIds.error) throw resIds.error;
+      var ids = (resIds.data || []).map(function(r){ return r.id; });
+      // Mostra grid vazio com placeholders enquanto carrega
+      var maq = machines.find(function(m){ return m.id === curId; });
+      var capaId = maq ? maq.capa_foto_id : null;
+      grid.innerHTML = ids.map(function(id){
+        return '<div class="fcell" id="fcell-' + id + '" style="background:var(--green-light)">' +
+          '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center"><div class="pdf-loading-spinner" style="width:20px;height:20px;border-width:2px"></div></div>' +
+        '</div>';
+      }).join('') + '<label class="fadd"><input type="file" accept="image/*" multiple onchange="addFotos(this)"><i class="ti ti-plus"></i><span>Foto</span></label>';
+      window._currentFotos = [];
+      // Carrega cada foto individualmente
+      for(var i = 0; i < ids.length; i++){
+        var fotoId = ids[i];
+        try {
+          var resFoto = await db.from('fotos').select('*').eq('id', fotoId).single();
+          if(resFoto.data){
+            var f = resFoto.data;
+            window._currentFotos.push(f);
+            NankinDB.put('fotos', f);
+            var ehCapa = f.id === capaId;
+            var cell = g('fcell-' + f.id);
+            if(cell){
+              cell.innerHTML =
+                '<img src="' + f.data + '" onclick="openLb(\'' + f.id + '\')">' +
+                '<button class="fdel" onclick="delFoto(\'' + f.id + '\',event)"><i class="ti ti-x"></i></button>' +
+                (ehCapa
+                  ? '<div class="fcapa-badge"><i class="ti ti-star-filled" style="font-size:10px"></i> CAPA</div>'
+                  : '<button class="fcapa-btn" onclick="definirCapa(\'' + f.id + '\',event)"><i class="ti ti-star" style="font-size:11px"></i> Capa</button>'
+                );
+            }
+          }
+        } catch(e2){}
+      }
+      if(ids.length === 0){
+        grid.innerHTML = '<label class="fadd"><input type="file" accept="image/*" multiple onchange="addFotos(this)"><i class="ti ti-plus"></i><span>Foto</span></label>';
+      }
+    } else {
+      data = await NankinDB.getByMachine('fotos', curId);
+      data.sort(function(a,b){ return (a.created_at||'').localeCompare(b.created_at||''); });
+      var maq = machines.find(function(m){ return m.id === curId; });
+      var capaId = maq ? maq.capa_foto_id : null;
+      grid.innerHTML = data.map(function(f){
+        var ehCapa = f.id === capaId;
+        return '<div class="fcell">' +
+          '<img src="' + f.data + '" onclick="openLb(\'' + f.id + '\')">' +
+          '<button class="fdel" onclick="delFoto(\'' + f.id + '\',event)"><i class="ti ti-x"></i></button>' +
+          (ehCapa
+            ? '<div class="fcapa-badge"><i class="ti ti-star-filled" style="font-size:10px"></i> CAPA</div>'
+            : '<button class="fcapa-btn" onclick="definirCapa(\'' + f.id + '\',event)"><i class="ti ti-star" style="font-size:11px"></i> Capa</button>'
+          ) +
+        '</div>';
+      }).join('') + '<label class="fadd"><input type="file" accept="image/*" multiple onchange="addFotos(this)"><i class="ti ti-plus"></i><span>Foto</span></label>';
+      window._currentFotos = data;
+    }
+  } catch(e){
+    console.log('[renderFotos] erro:', e);
+    // Fallback: tenta cache local
+    try {
+      data = await NankinDB.getByMachine('fotos', curId);
+      data.sort(function(a,b){ return (a.created_at||'').localeCompare(b.created_at||''); });
+      var maq2 = machines.find(function(m){ return m.id === curId; });
+      var capaId2 = maq2 ? maq2.capa_foto_id : null;
+      grid.innerHTML = data.map(function(f){
+        var ehCapa = f.id === capaId2;
+        return '<div class="fcell">' +
+          '<img src="' + f.data + '" onclick="openLb(\'' + f.id + '\')">' +
+          '<button class="fdel" onclick="delFoto(\'' + f.id + '\',event)"><i class="ti ti-x"></i></button>' +
+          (ehCapa
+            ? '<div class="fcapa-badge"><i class="ti ti-star-filled" style="font-size:10px"></i> CAPA</div>'
+            : '<button class="fcapa-btn" onclick="definirCapa(\'' + f.id + '\',event)"><i class="ti ti-star" style="font-size:11px"></i> Capa</button>'
+          ) +
+        '</div>';
+      }).join('') + '<label class="fadd"><input type="file" accept="image/*" multiple onchange="addFotos(this)"><i class="ti ti-plus"></i><span>Foto</span></label>';
+      window._currentFotos = data;
+    } catch(e2){
+      grid.innerHTML = '<div class="empty"><i class="ti ti-photo-off"></i><div class="empty-t">Erro ao carregar fotos</div><div class="empty-s">Tente novamente</div></div><label class="fadd"><input type="file" accept="image/*" multiple onchange="addFotos(this)"><i class="ti ti-plus"></i><span>Foto</span></label>';
+    }
+  }
 }
 
 async function definirCapa(fotoId, e){
