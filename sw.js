@@ -1,12 +1,14 @@
 // sw.js — Cache dos arquivos estaticos do app, para abrir mesmo sem internet.
 // Estrategia: cache-first para os arquivos do proprio app; network-first para tudo externo (CDNs, Supabase).
 
-var CACHE_NAME = 'nankin-shell-v2';
+var CACHE_NAME = 'nankin-shell-v3';
 var SHELL_FILES = [
   './',
   './index.html',
   './db-local.js',
   './sync.js',
+  './pdf.min.js',
+  './pdf.worker.min.js',
   './manifest.json'
 ];
 
