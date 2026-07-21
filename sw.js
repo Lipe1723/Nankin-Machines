@@ -1,10 +1,8 @@
 // sw.js — Cache dos arquivos estaticos do app, para abrir mesmo sem internet.
-// Estrategia: cache-first para os arquivos do proprio app; network-first para tudo externo (CDNs, Supabase).
+// Estrategia: network-first para index.html (sempre atualizado), cache-first para o resto.
 
-var CACHE_NAME = 'nankin-shell-v3';
+var CACHE_NAME = 'nankin-shell-v5';
 var SHELL_FILES = [
-  './',
-  './index.html',
   './db-local.js',
   './sync.js',
   './pdf.min.js',
@@ -13,12 +11,10 @@ var SHELL_FILES = [
 ];
 
 self.addEventListener('install', function (event) {
-  self.skipWaiting();
+  self.skipWaiting(); // Ativa imediatamente sem esperar fechar abas
   event.waitUntil(
     caches.open(CACHE_NAME).then(function (cache) {
-      return cache.addAll(SHELL_FILES).catch(function () {
-        // se algum arquivo nao existir ainda, nao trava a instalacao
-      });
+      return cache.addAll(SHELL_FILES).catch(function () {});
     })
   );
 });
@@ -29,7 +25,7 @@ self.addEventListener('activate', function (event) {
       return Promise.all(
         names.filter(function (n) { return n !== CACHE_NAME; }).map(function (n) { return caches.delete(n); })
       );
-    }).then(function () { return self.clients.claim(); })
+    }).then(function () { return self.clients.claim(); }) // Toma controle imediato de todas as abas
   );
 });
 
@@ -39,9 +35,21 @@ self.addEventListener('fetch', function (event) {
 
   var url = new URL(req.url);
   var isOwnFile = url.origin === self.location.origin;
+  var isIndexHtml = isOwnFile && (url.pathname.endsWith('/') || url.pathname.endsWith('index.html'));
 
-  if (isOwnFile) {
-    // Cache-first para os arquivos do proprio app: abre instantaneo e offline.
+  if (isIndexHtml) {
+    // Network-first para o index.html: sempre busca versão nova, usa cache só se offline
+    event.respondWith(
+      fetch(req).then(function (networkRes) {
+        var clone = networkRes.clone();
+        caches.open(CACHE_NAME).then(function (cache) { cache.put(req, clone); });
+        return networkRes;
+      }).catch(function () {
+        return caches.match(req);
+      })
+    );
+  } else if (isOwnFile) {
+    // Cache-first para os outros arquivos do app
     event.respondWith(
       caches.match(req).then(function (cached) {
         var fetchPromise = fetch(req).then(function (networkRes) {
@@ -55,6 +63,5 @@ self.addEventListener('fetch', function (event) {
       })
     );
   }
-  // Requisicoes externas (Supabase, CDNs de fonte/icone) seguem direto pela rede,
-  // sem interceptar — o app ja trata a falta de rede via db-local.js / sync.js.
+  // Requisições externas (Supabase, CDNs) seguem direto pela rede
 });
