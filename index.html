@@ -297,9 +297,26 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--f
   <div class="sheet">
     <div class="shandle"></div>
     <div class="stitle">Adicionar peça</div>
-    <div class="fg"><label class="fl">Quantidade</label><input class="fi" id="p-qty" type="number" min="1" placeholder="Ex: 20"></div>
-    <div class="fg"><label class="fl">Nome da peça *</label><input class="fi" id="p-nome" placeholder="Ex: Parafuso M12"></div>
-    <div class="fg"><label class="fl">Categoria</label><input class="fi" id="p-cat" placeholder="Ex: Parafusos, Motores..."></div>
+    <div style="display:flex;gap:8px">
+      <div class="fg" style="flex:1"><label class="fl">Quantidade</label><input class="fi" id="p-qty" type="number" min="0" step="0.01" placeholder="Ex: 8"></div>
+      <div class="fg" style="flex:1"><label class="fl">Unidade</label>
+        <select class="fi" id="p-unidade">
+          <option value="un">un (unidade)</option>
+          <option value="m">m (metros)</option>
+          <option value="cm">cm (centímetros)</option>
+          <option value="mm">mm (milímetros)</option>
+          <option value="kg">kg (quilos)</option>
+          <option value="g">g (gramas)</option>
+          <option value="L">L (litros)</option>
+          <option value="ml">ml (mililitros)</option>
+          <option value="pc">pc (peças)</option>
+          <option value="par">par</option>
+          <option value="jg">jg (jogo)</option>
+        </select>
+      </div>
+    </div>
+    <div class="fg"><label class="fl">Nome da peça *</label><input class="fi" id="p-nome" placeholder="Ex: Cabo de aço"></div>
+    <div class="fg"><label class="fl">Categoria</label><input class="fi" id="p-cat" placeholder="Ex: Cabos, Parafusos..."></div>
     <div class="fg"><label class="fl">Observação</label><input class="fi" id="p-obs" placeholder="Ex: Inox, galvanizado..."></div>
     <div class="sfoot">
       <button class="btn sec" style="flex:1" onclick="closeSheet('sh-peca')">Cancelar</button>
@@ -927,7 +944,7 @@ async function renderPecas(){
 }
 
 function pecaRow(p){
-  return '<div class="prow"><span class="pqty">' + p.qty + 'x</span><div style="flex:1"><div class="pnome">' + p.nome + '</div>' + (p.categoria ? '<div class="pobs" style="color:var(--green-dark)">' + p.categoria + '</div>' : '') + (p.obs ? '<div class="pobs">' + p.obs + '</div>' : '') + '</div><button class="btn danger sm" onclick="delPeca(\'' + p.id + '\')"><i class="ti ti-trash"></i></button></div>';
+  return '<div class="prow"><span class="pqty">' + (p.qty % 1 === 0 ? p.qty : parseFloat(p.qty).toFixed(2)) + ' <small style="font-size:11px;font-weight:500;color:var(--muted)">' + (p.unidade || 'un') + '</small></span><div style="flex:1"><div class="pnome">' + p.nome + '</div>' + (p.categoria ? '<div class="pobs" style="color:var(--green-dark)">' + p.categoria + '</div>' : '') + (p.obs ? '<div class="pobs">' + p.obs + '</div>' : '') + '</div><button class="btn danger sm" onclick="delPeca(\'' + p.id + '\')"><i class="ti ti-trash"></i></button></div>';
 }
 
 function imprimirPecas(){
@@ -948,15 +965,17 @@ function imprimirPecas(){
 }
 
 async function salvarPeca(){
-  var qty = parseInt(g('p-qty').value) || 0;
+  var qty = parseFloat(g('p-qty').value) || 0;
   var nome = g('p-nome').value.trim();
   if(!qty || !nome){ toast('Preencha quantidade e nome', 2200, true); return; }
-  var nova = { id: NankinDB.uuid(), machine_id: curId, qty: qty, nome: nome, categoria: g('p-cat').value.trim(), obs: g('p-obs').value.trim(), created_at: new Date().toISOString() };
+  var unidade = g('p-unidade').value || 'un';
+  var nova = { id: NankinDB.uuid(), machine_id: curId, qty: qty, unidade: unidade, nome: nome, categoria: g('p-cat').value.trim(), obs: g('p-obs').value.trim(), created_at: new Date().toISOString() };
   var r = await NankinSync.write('pecas', 'insert', nova);
   var saved = (r.data && r.data.id) ? r.data : nova;
   await NankinDB.put('pecas', saved);
   closeSheet('sh-peca');
   ['p-qty','p-nome','p-cat','p-obs'].forEach(function(id){ g(id).value = ''; });
+  g('p-unidade').value = 'un';
   toast(r.offline ? 'Peça adicionada (vai sincronizar)' : 'Peça adicionada!');
   if(r.offline) updateNetPill('queued');
   renderPecas();
