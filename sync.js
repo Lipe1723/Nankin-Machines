@@ -82,9 +82,15 @@ var NankinSync = (function () {
   // Baixa tudo do Supabase e guarda local (chamado quando online, para manter cache atualizado)
   function refreshLocalCache() {
     if (!isOnline()) return Promise.resolve();
-    var tables = ['machines', 'fotos', 'pecas', 'pdfs', 'saidas'];
-    return Promise.all(tables.map(function (t) {
-      return db.from(t).select('*').then(function (res) {
+    var tableSelects = {
+      machines: '*',
+      fotos: 'id,url,machine_id,created_at',
+      pecas: '*',
+      pdfs: 'id,parte,nome,machine_id,created_at',
+      saidas: '*'
+    };
+    return Promise.all(Object.keys(tableSelects).map(function(t) {
+      return db.from(t).select(tableSelects[t]).then(function (res) {
         if (res.data) return NankinDB.putMany(t, res.data);
       }).catch(function () {});
     }));
