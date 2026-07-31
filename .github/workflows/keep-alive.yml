@@ -2,8 +2,8 @@ name: Supabase Keep Alive
 
 on:
   schedule:
-    - cron: '0 10 * * 1'  # Toda segunda-feira às 10h (UTC)
-  workflow_dispatch:       # Permite rodar manualmente também
+    - cron: '0 10 * * *'  # Todo dia às 10h (UTC)
+  workflow_dispatch:
 
 jobs:
   ping:
