@@ -756,7 +756,7 @@ async function abrirDetalhe(id){
   g('v-detalhe').classList.add('on');
   g('bn-maquinas').classList.add('active');
   g('logo').innerHTML = '<span style="color:#a8dbb8;font-size:13px">' + m.nome + '</span>';
-  g('topbar-actions').innerHTML = '';
+  g('topbar-actions').innerHTML = '<button class="topbar-btn" onclick="confirmarExcluirMaq()"><i class="ti ti-trash"></i></button>';
   document.querySelectorAll('.itab').forEach(function(b, i){ b.classList.toggle('active', i === 0); });
   ['pecas','pdfs','saidas-maq'].forEach(function(t){ g('it-' + t).style.display = 'none'; });
   g('it-fotos').style.display = 'block';
@@ -764,6 +764,33 @@ async function abrirDetalhe(id){
 }
 
 function voltarLista(){ goView('maquinas'); }
+
+function confirmarExcluirMaq(){
+  var m = machines.find(function(x){ return x.id === curId; });
+  askConfirm({
+    title: 'Excluir máquina?',
+    msg: 'Isso vai apagar "' + (m ? m.nome : '') + '" e todas as suas fotos, peças, PDFs e saídas. Essa ação não pode ser desfeita.',
+    onConfirm: async function(){
+      toast('Excluindo...');
+      try {
+        // Apaga registros vinculados
+        await db.from('fotos').delete().eq('machine_id', curId);
+        await db.from('pecas').delete().eq('machine_id', curId);
+        await db.from('pdfs').delete().eq('machine_id', curId);
+        await db.from('saidas').delete().eq('machine_id', curId);
+        await db.from('machines').delete().eq('id', curId);
+        // Remove do cache local
+        await NankinDB.remove('machines', curId);
+        machines = machines.filter(function(m){ return m.id !== curId; });
+        allSaidas = allSaidas.filter(function(s){ return s.machine_id !== curId; });
+        toast('Máquina excluída!');
+        goView('maquinas');
+      } catch(e){
+        toast('Erro ao excluir', 2200, true);
+      }
+    }
+  });
+}
 
 function itab(tab, btn){
   ['fotos','pecas','pdfs','saidas-maq'].forEach(function(t){ g('it-' + t).style.display = 'none'; });
